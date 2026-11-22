@@ -1,0 +1,16 @@
+{
+  "id": "buildings",
+  "title": {"en": "Buildings", "ar": "المباني"},
+  "icon": "🏛",
+  "env": "app",
+  "needs": ["bpy"],
+  "cwd": "backend",
+  "command": ["{python}", "-m", "uvicorn", "bimgame.api.app:app", "--host", "127.0.0.1", "--port", "{port}", "--workers", "1"],
+  "env_vars": {
+    "BIM_DATA_DIR": "{data}",
+    "BIM_BLENDER_PYTHON": "{env:bpy}",
+    "BIM_FRONTEND_DIST": "{module}/frontend/dist"
+  },
+  "health": "/api/health",
+  "preferred_port": 8101
+}

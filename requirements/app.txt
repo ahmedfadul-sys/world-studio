@@ -1,0 +1,4 @@
+# One shared environment for the platform + every Python module (FastAPI backends, terrain math).
+-r ../apps/buildings/requirements.txt
+-r ../apps/terrain/backend/requirements.txt
+httpx>=0.27

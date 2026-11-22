@@ -1,0 +1,3 @@
+# What was and was not verified
+Verified by execution: backend pytest (46), frontend vitest (24), Playwright e2e of the editor (draw, openings, undo/redo, save, 3D preview, Arabic RTL, mobile width; zero console errors), real Blender (bpy 5.0.1) builds and GLB export with collision nodes/textures, cancel and queue limits, perf runs, demo project export (51 nodes, 48 meshes).
+NOT verified: import into Godot (no Godot available; `godot_test/` is unexecuted), the real Blender executable (only the bpy module), FBX re-import, Windows scripts, floor-hole/stair-void UI tools (model supports them via JSON only), browsers other than Chromium.

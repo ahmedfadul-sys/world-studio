@@ -1,0 +1,44 @@
+name: release
+# Push a tag like v0.2.0 → builds the installer and the update package and attaches them to a GitHub Release.
+# The running app checks the latest release and downloads world-studio-app-<version>.zip (verified by its .sha256).
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Version from tag
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart("v")
+          Set-Content -NoNewline VERSION $v
+      - name: Install Inno Setup if missing
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) { choco install innosetup -y --no-progress }
+          $p = "C:\Program Files (x86)\Inno Setup 6"
+          if (Test-Path $p) { echo $p | Out-File -Append -Encoding utf8 $env:GITHUB_PATH }
+      - name: Python tests
+        shell: pwsh
+        run: |
+          python -m pip install pytest fastapi httpx uvicorn
+          python -m pytest -q tests
+      - name: Build
+        shell: pwsh
+        run: ./packaging/windows/build.ps1
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/WorldStudio-Setup-*.exe
+            dist/world-studio-app-*.zip
+            dist/world-studio-app-*.zip.sha256

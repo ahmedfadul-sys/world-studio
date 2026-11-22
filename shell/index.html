@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Studio</title>
+<style>
+  :root { --bg:#0e1621; --panel:#152131; --line:#243349; --text:#e6edf5; --muted:#8fa3bb; --accent:#4da3ff; --ok:#3ecf8e; --warn:#f5b73a; --bad:#ff6b6b; }
+  :root[data-theme="light"] { --bg:#f2f5f9; --panel:#fff; --line:#d5dde8; --text:#18222f; --muted:#5d7088; --accent:#1a6fd6; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI", Tahoma, system-ui, sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  header { display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 44px; background: var(--panel); border-bottom: 1px solid var(--line); flex: none; }
+  .brand { font-weight: 700; letter-spacing: .3px; margin-inline-end: 12px; }
+  .brand small { color: var(--muted); font-weight: 400; margin-inline-start: 6px; }
+  .tab { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font: inherit; }
+  .tab:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .tab[aria-selected="true"] { color: var(--text); background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--accent); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+  .dot.ready { background: var(--ok); } .dot.failed { background: var(--bad); } .dot.stopped { background: var(--muted); }
+  .grow { flex: 1; }
+  .btn { height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--text); cursor: pointer; font: inherit; }
+  .btn:hover { border-color: var(--accent); } .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  #banner { display: none; align-items: center; gap: 10px; padding: 7px 14px; background: color-mix(in srgb, var(--accent) 22%, var(--panel)); border-bottom: 1px solid var(--line); flex: none; }
+  #banner.show { display: flex; }
+  main { flex: 1; position: relative; min-height: 0; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); visibility: hidden; }
+  iframe.on { visibility: visible; }
+  .note { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; text-align: center; padding: 24px; }
+  .note.on { display: flex; }
+  .note pre { max-width: 760px; max-height: 260px; overflow: auto; text-align: start; direction: ltr; background: var(--panel); border: 1px solid var(--line); padding: 10px; border-radius: 8px; font-size: 12px; }
+  #panel { position: fixed; top: 48px; inset-inline-end: 10px; width: 380px; max-height: calc(100% - 60px); overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: none; z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  #panel.on { display: block; }
+  #panel h3 { margin: 0 0 8px; font-size: 15px; } #panel dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0 0 12px; }
+  #panel dt { color: var(--muted); } #panel dd { margin: 0; word-break: break-all; direction: ltr; text-align: start; }
+  #panel .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .spin { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: s 1s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">World Studio<small id="ver"></small></div>
+    <nav id="tabs" role="tablist" style="display:flex;gap:4px"></nav>
+    <div class="grow"></div>
+    <button class="btn" id="lang" title="Language">EN</button>
+    <button class="btn" id="theme" title="Theme">☾</button>
+    <button class="btn" id="gear" data-testid="gear" aria-label="settings">⚙</button>
+  </header>
+  <div id="banner"><span id="banner-text"></span><span class="grow"></span><button class="btn primary" id="do-update">…</button><button class="btn" id="later">×</button></div>
+  <main id="main"></main>
+</div>
+<div id="job" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50">
+  <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;width:min(560px,92vw)">
+    <h3 id="job-title" style="margin:0 0 10px"></h3>
+    <progress id="job-bar" style="width:100%" max="100" value="0"></progress>
+    <p id="job-text" style="color:var(--muted);margin:10px 0"></p>
+    <div id="job-warn" style="color:var(--warn,#d9a400);margin:0 0 10px"></div>
+    <div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="job-open" hidden></button><button class="btn" id="job-close"></button></div>
+  </div>
+</div>
+<aside id="panel" aria-label="settings">
+  <h3 data-i="settings">Settings</h3>
+  <dl id="info"></dl>
+  <h3 style="margin-top:6px" data-i="my_env">My Python environments</h3>
+  <p style="color:var(--muted);margin:0 0 6px" data-i="my_env_help"></p>
+  <div id="envs"></div>
+  <div class="row">
+    <button class="btn" id="chk" data-i="check">Check for updates</button>
+    <button class="btn" id="rb" data-i="rollback">Roll back</button>
+    <button class="btn" id="rs" data-i="restart">Restart</button>
+  </div>
+  <p id="msg" style="color:var(--muted);margin:10px 0 0"></p>
+</aside>
+<script>
+const T = {
+  ar: { settings:'الإعدادات', check:'التحقق من التحديثات', rollback:'التراجع للإصدار السابق', restart:'إعادة التشغيل', version:'الإصدار', home:'مجلد البيانات',
+        env_app:'بيئة التطبيقات', env_bpy:'بيئة bpy', external:'(بيئتك الخاصة)', managed:'(مُدارة)', starting:'جارٍ التشغيل…', failed:'تعذّر تشغيل هذه الوحدة', logs:'عرض السجل',
+        restart_mod:'إعادة تشغيل الوحدة', upd:'يتوفر إصدار جديد', now:'تحديث الآن', uptodate:'أنت على آخر إصدار.', downloading:'جارٍ التنزيل والتحقق…', restart_req:'تم التحديث. أعد التشغيل لتفعيله.', restart_now:'إعادة التشغيل الآن', error:'خطأ', exp_title:'تصدير العالم مع المنشآت', exp_terrain:'جارٍ توليد التضاريس…', exp_site:'جارٍ تصدير مجسم المنشأة', exp_done:'اكتمل التصدير. المجلد:', open_folder:'فتح المجلد', close:'إغلاق', open_fail:'تعذّر فتح BIM Builder', my_env:'بيئات Python الخاصة بي', my_env_help:'إن كانت لديك بيئة جاهزة (مع bpy) ضع مسار python فيها؛ لن يُنزَّل أو يُنشأ شيء لها. يسري بعد إعادة التشغيل.', save_verify:'حفظ وفحص', use_managed:'استخدام المُدارة', ok:'سليمة', missing:'ينقصها' },
+  en: { settings:'Settings', check:'Check for updates', rollback:'Roll back', restart:'Restart', version:'Version', home:'Data folder',
+        env_app:'Apps environment', env_bpy:'bpy environment', external:'(your own)', managed:'(managed)', starting:'Starting…', failed:'This module could not start', logs:'View log',
+        restart_mod:'Restart module', upd:'A new version is available', now:'Update now', uptodate:'You are up to date.', downloading:'Downloading and verifying…', restart_req:'Updated. Restart to activate.', restart_now:'Restart now', error:'Error', exp_title:'Export world with sites', exp_terrain:'Generating terrain…', exp_site:'Exporting site model', exp_done:'Export finished. Folder:', open_folder:'Open folder', close:'Close', open_fail:'Could not open BIM Builder', my_env:'My Python environments', my_env_help:'If you already have a ready environment (with bpy), enter its python path; nothing is downloaded or created for it. Takes effect after a restart.', save_verify:'Save & verify', use_managed:'Use managed', ok:'OK', missing:'missing' },
+}
+let lang = 'ar', mods = [], cur = null, info = null
+const $ = (s) => document.querySelector(s)
+const t = (k) => T[lang][k] || k
+const api = async (p, method = 'GET', body) => { const r = await fetch('/studio/api' + p, { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.detail || r.statusText); return j }
+const store = { get: (k, d) => { try { return localStorage.getItem(k) || d } catch { return d } }, set: (k, v) => { try { localStorage.setItem(k, v) } catch {} } }
+
+function applyLang() {
+  document.documentElement.lang = lang; document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr'
+  $('#lang').textContent = lang === 'ar' ? 'EN' : 'عربي'
+  document.querySelectorAll('[data-i]').forEach((e) => { e.textContent = t(e.dataset.i) })
+  renderTabs(); renderInfo()
+}
+function renderTabs() {
+  const box = $('#tabs'); box.innerHTML = ''
+  for (const m of mods) {
+    const b = document.createElement('button'); b.className = 'tab'; b.role = 'tab'; b.dataset.mod = m.id; b.setAttribute('aria-selected', m.id === cur)
+    b.innerHTML = `<span>${m.icon}</span><span>${(m.titles && m.titles[lang]) || m.title}</span><span class="dot ${m.state}"></span>`
+    b.onclick = () => select(m.id); box.appendChild(b)
+  }
+}
+function frameFor(m) {
+  let f = document.getElementById('f-' + m.id)
+  if (!f) { f = document.createElement('iframe'); f.id = 'f-' + m.id; f.title = m.id; $('#main').appendChild(f) }
+  return f
+}
+function noteFor(m) {
+  let n = document.getElementById('n-' + m.id)
+  if (!n) { n = document.createElement('div'); n.id = 'n-' + m.id; n.className = 'note'; $('#main').appendChild(n) }
+  return n
+}
+function select(id) {
+  cur = id; store.set('tab', id)
+  for (const m of mods) {
+    const on = m.id === id, f = frameFor(m), n = noteFor(m)
+    f.classList.toggle('on', on && m.state === 'ready'); n.classList.toggle('on', on && m.state !== 'ready')
+  }
+  renderTabs()
+}
+async function refresh() {
+  try { mods = (await api('/modules')).modules } catch { return }
+  if (!cur || !mods.find((m) => m.id === cur)) cur = store.get('tab', mods[0] && mods[0].id)
+  if (!mods.find((m) => m.id === cur) && mods[0]) cur = mods[0].id
+  for (const m of mods) {
+    const f = frameFor(m), n = noteFor(m)
+    if (m.state === 'ready' && f.dataset.url !== m.url) { f.dataset.url = m.url; f.src = m.url }
+    if (m.state === 'starting') n.innerHTML = `<div class="spin"></div><div>${t('starting')}</div>`
+    else if (m.state === 'failed') { n.innerHTML = `<div style="color:var(--bad);font-size:16px">${t('failed')}</div><div>${m.error || ''}</div><div class="row" style="display:flex;gap:8px"><button class="btn" data-act="restart" data-id="${m.id}">${t('restart_mod')}</button><button class="btn" data-act="log" data-id="${m.id}">${t('logs')}</button></div><pre id="log-${m.id}" hidden></pre>` }
+  }
+  select(cur)
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-act]'); if (!b) return
+  if (b.dataset.act === 'restart') { await api(`/modules/${b.dataset.id}/restart`, 'POST'); setTimeout(refresh, 500) }
+  if (b.dataset.act === 'log') { const p = document.getElementById('log-' + b.dataset.id); p.hidden = false; p.textContent = (await api('/logs/' + b.dataset.id)).text }
+})
+function renderInfo() {
+  if (!info) return
+  const dl = $('#info'); const e = info.envs
+  dl.innerHTML = `<dt>${t('version')}</dt><dd>${info.version}</dd><dt>${t('home')}</dt><dd>${info.home}</dd>
+    <dt>${t('env_app')}</dt><dd>${e.app.python} ${e.app.external ? t('external') : t('managed')}</dd>
+    <dt>${t('env_bpy')}</dt><dd>${e.bpy.python} ${e.bpy.external ? t('external') : t('managed')}</dd>`
+  $('#ver').textContent = 'v' + info.version
+  const box = $('#envs'); box.innerHTML = ''
+  for (const n of ['app', 'bpy']) {
+    const x = e[n], row = document.createElement('div'); row.style.cssText = 'margin-bottom:8px'
+    row.innerHTML = `<div style="color:var(--muted)">${t('env_' + n)} ${x.external ? (x.missing && x.missing.length ? '— ' + t('missing') + ': ' + x.missing.join(', ') : '— ' + t('ok')) : ''}</div>
+      <div style="display:flex;gap:6px"><input data-env="${n}" value="${x.external ? x.python : ''}" placeholder="C:\\path\\to\\python.exe" style="flex:1;direction:ltr;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px">
+      <button class="btn" data-save="${n}">${t('save_verify')}</button></div>`
+    box.appendChild(row)
+  }
+}
+document.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('[data-save]'); if (!b) return
+  const n = b.dataset.save, v = document.querySelector(`[data-env="${n}"]`).value.trim()
+  try { const r = await api('/env', 'POST', { name: n, python: v || null }); $('#msg').textContent = r.ok ? t('restart_req') : (t('missing') + ': ' + (r.missing || []).join(', ') + (r.error ? ' (' + r.error + ')' : '')); info = await api('/info'); renderInfo() } catch (e2) { $('#msg').textContent = e2.message }
+})
+
+/* ---- bridge between modules (terrain <-> buildings) ---- */
+const frameOf = (id) => document.getElementById('f-' + id)
+const fromFrame = (e, id) => { const f = frameOf(id); return !!f && e.source === f.contentWindow }
+let bimOpen = null
+async function openSite(site) {
+  const tf = frameOf('terrain'), bm = mods.find((m) => m.id === 'buildings')
+  try {
+    const r = await api('/sites/open', 'POST', { site })
+    if (tf && tf.contentWindow) tf.contentWindow.postMessage({ type: 'studio.siteLinked', siteId: site.id, project_id: r.project_id }, '*')
+    const f = frameOf('buildings')
+    if (f && bm) { if (bimOpen !== r.url) { f.src = r.url; bimOpen = r.url; f.dataset.url = bm.url } select('buildings') }
+  } catch (err) { alert(t('open_fail') + ': ' + err.message) }
+}
+let jobTimer = null
+function showJob(on) { const j = $('#job'); j.hidden = !on; j.style.display = on ? 'flex' : 'none' }
+async function exportWorld(project, mode) {
+  $('#job-title').textContent = t('exp_title'); $('#job-bar').value = 0; $('#job-text').textContent = t('exp_terrain'); $('#job-warn').textContent = ''
+  $('#job-open').hidden = true; $('#job-close').textContent = t('close'); showJob(true)
+  let id
+  try { id = (await api('/export/world', 'POST', { project, mode })).job_id } catch (err) { $('#job-text').textContent = err.message; return }
+  clearInterval(jobTimer)
+  jobTimer = setInterval(async () => {
+    let j; try { j = await api('/export/world/' + id) } catch { return }
+    const sub = j.sub ? j.sub[0] / Math.max(1, j.sub[1]) : 0
+    $('#job-bar').value = Math.round(100 * (j.done + (j.step === 'terrain' ? sub : 0)) / Math.max(1, j.total))
+    $('#job-text').textContent = j.step === 'terrain' ? t('exp_terrain') : (j.step || '').startsWith('site:') ? t('exp_site') + ' ' + j.step.slice(5) : ''
+    $('#job-warn').textContent = (j.warnings || []).join(' | ')
+    if (j.state === 'error') { clearInterval(jobTimer); $('#job-text').textContent = t('error') + ': ' + j.error }
+    if (j.state === 'done') {
+      clearInterval(jobTimer); $('#job-bar').value = 100; $('#job-text').textContent = t('exp_done') + ' ' + j.out
+      const b = $('#job-open'); b.hidden = false; b.textContent = t('open_folder'); b.onclick = () => api('/open-folder', 'POST', { path: j.out }).catch((er) => alert(er.message))
+    }
+  }, 600)
+}
+$('#job-close').onclick = () => { clearInterval(jobTimer); showJob(false) }
+window.addEventListener('message', (e) => {
+  const d = e.data; if (!d || typeof d.type !== 'string') return
+  if (d.type === 'studio.openSite' && fromFrame(e, 'terrain')) openSite(d.site)
+  else if (d.type === 'studio.exportWorld' && fromFrame(e, 'terrain')) exportWorld(d.project, d.mode)
+  else if (d.type === 'studio.back' && fromFrame(e, 'buildings')) select('terrain')
+})
+function showUpdate(u) {
+  const b = $('#banner')
+  if (u && u.available) { $('#banner-text').textContent = `${t('upd')}: v${u.latest}`; $('#do-update').textContent = t('now'); b.classList.add('show') } else b.classList.remove('show')
+}
+async function doUpdate() {
+  const btn = $('#do-update'); btn.disabled = true; $('#banner-text').textContent = t('downloading')
+  try {
+    await api('/update/apply', 'POST')
+    $('#banner-text').textContent = t('restart_req'); btn.textContent = t('restart_now'); btn.disabled = false
+    btn.onclick = () => api('/restart', 'POST')
+  } catch (e) { $('#banner-text').textContent = t('error') + ': ' + e.message; btn.disabled = false }
+}
+$('#do-update').onclick = doUpdate
+$('#later').onclick = () => $('#banner').classList.remove('show')
+$('#gear').onclick = async () => { $('#panel').classList.toggle('on'); info = await api('/info'); renderInfo() }
+$('#chk').onclick = async () => { const u = await api('/update/check', 'POST'); $('#msg').textContent = u.error || (u.available ? `${t('upd')}: v${u.latest}` : t('uptodate')); showUpdate(u) }
+$('#rb').onclick = async () => { try { await api('/update/rollback', 'POST'); $('#msg').textContent = t('restart_req') } catch (e) { $('#msg').textContent = e.message } }
+$('#rs').onclick = () => api('/restart', 'POST')
+$('#lang').onclick = async () => { lang = lang === 'ar' ? 'en' : 'ar'; store.set('lang', lang); await api('/settings', 'POST', { lang }); applyLang() }
+$('#theme').onclick = () => { const l = document.documentElement.dataset.theme === 'light'; document.documentElement.dataset.theme = l ? 'dark' : 'light'; store.set('theme', l ? 'dark' : 'light'); $('#theme').textContent = l ? '☾' : '☀' }
+;(async () => {
+  document.documentElement.dataset.theme = store.get('theme', 'dark'); $('#theme').textContent = store.get('theme', 'dark') === 'light' ? '☀' : '☾'
+  try { info = await api('/info'); lang = info.lang || 'ar'; showUpdate(info.update) } catch {}
+  applyLang(); await refresh(); setInterval(refresh, 3000)
+  const ping = () => api('/ping', 'POST').catch(() => {}); ping(); setInterval(ping, 10000)
+  if (info && info.auto_update) { try { const u = await api('/update/check', 'POST'); showUpdate(u) } catch {} }
+})()
+</script>
+</body>
+</html>

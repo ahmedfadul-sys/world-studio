@@ -1,0 +1,500 @@
+{
+ "id": "prj_de24183a",
+ "schema_version": 1,
+ "name": "Demo house",
+ "created_at": "2026-11-06T08:38:44+00:00",
+ "updated_at": "2026-11-06T08:38:44+00:00",
+ "meta": {
+  "description": "",
+  "author": "",
+  "style": {
+   "name": "custom",
+   "params": {}
+  }
+ },
+ "units": {
+  "name": "m"
+ },
+ "editor": {
+  "grid_size": null,
+  "snap_size": null,
+  "snap_enabled": true,
+  "show_dimensions": true
+ },
+ "levels": [
+  {
+   "id": "lvl_0",
+   "name": "Ground",
+   "elevation": 0.0,
+   "height": 3.0
+  },
+  {
+   "id": "lvl_1",
+   "name": "First",
+   "elevation": 3.0,
+   "height": 3.0
+  }
+ ],
+ "materials": [
+  {
+   "id": "mat_plaster",
+   "name": "Plaster",
+   "color": "#d9d4c7",
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "texture": null,
+   "uv_scale": 1.0
+  },
+  {
+   "id": "mat_concrete",
+   "name": "Concrete",
+   "color": "#8d8d8d",
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "texture": null,
+   "uv_scale": 1.0
+  },
+  {
+   "id": "mat_wood",
+   "name": "Wood",
+   "color": "#8a5a33",
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "texture": null,
+   "uv_scale": 1.0
+  },
+  {
+   "id": "mat_glass",
+   "name": "Glass",
+   "color": "#9fc7d6",
+   "roughness": 0.05,
+   "metallic": 0.0,
+   "texture": null,
+   "uv_scale": 1.0
+  },
+  {
+   "id": "mat_roof",
+   "name": "Roof tile",
+   "color": "#9b4b36",
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "texture": null,
+   "uv_scale": 1.0
+  }
+ ],
+ "modules": [],
+ "elements": [
+  {
+   "id": "lvl_0_w0",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "wall",
+   "a": [
+    0.0,
+    0.0
+   ],
+   "b": [
+    10.0,
+    0.0
+   ],
+   "thickness": 0.25,
+   "height": null,
+   "material_inner": null
+  },
+  {
+   "id": "lvl_0_w1",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "wall",
+   "a": [
+    10.0,
+    0.0
+   ],
+   "b": [
+    10.0,
+    7.0
+   ],
+   "thickness": 0.25,
+   "height": null,
+   "material_inner": null
+  },
+  {
+   "id": "lvl_0_w2",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "wall",
+   "a": [
+    10.0,
+    7.0
+   ],
+   "b": [
+    0.0,
+    7.0
+   ],
+   "thickness": 0.25,
+   "height": null,
+   "material_inner": null
+  },
+  {
+   "id": "lvl_0_w3",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "wall",
+   "a": [
+    0.0,
+    7.0
+   ],
+   "b": [
+    0.0,
+    0.0
+   ],
+   "thickness": 0.25,
+   "height": null,
+   "material_inner": null
+  },
+  {
+   "id": "lvl_0_floor",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "floor",
+   "kind": "floor",
+   "polygon": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     10.0,
+     0.0
+    ],
+    [
+     10.0,
+     7.0
+    ],
+    [
+     0.0,
+     7.0
+    ]
+   ],
+   "holes": [],
+   "thickness": 0.2,
+   "z_offset": 0.0
+  },
+  {
+   "id": "lvl_1_w0",
+   "level_id": "lvl_1",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "wall",
+   "a": [
+    0.0,
+    0.0
+   ],
+   "b": [
+    10.0,
+    0.0
+   ],
+   "thickness": 0.25,
+   "height": null,
+   "material_inner": null
+  },
+  {
+   "id": "lvl_1_w1",
+   "level_id": "lvl_1",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "wall",
+   "a": [
+    10.0,
+    0.0
+   ],
+   "b": [
+    10.0,
+    7.0
+   ],
+   "thickness": 0.25,
+   "height": null,
+   "material_inner": null
+  },
+  {
+   "id": "lvl_1_w2",
+   "level_id": "lvl_1",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "wall",
+   "a": [
+    10.0,
+    7.0
+   ],
+   "b": [
+    0.0,
+    7.0
+   ],
+   "thickness": 0.25,
+   "height": null,
+   "material_inner": null
+  },
+  {
+   "id": "lvl_1_w3",
+   "level_id": "lvl_1",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "wall",
+   "a": [
+    0.0,
+    7.0
+   ],
+   "b": [
+    0.0,
+    0.0
+   ],
+   "thickness": 0.25,
+   "height": null,
+   "material_inner": null
+  },
+  {
+   "id": "lvl_1_floor",
+   "level_id": "lvl_1",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "floor",
+   "kind": "floor",
+   "polygon": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     10.0,
+     0.0
+    ],
+    [
+     10.0,
+     7.0
+    ],
+    [
+     0.0,
+     7.0
+    ]
+   ],
+   "holes": [],
+   "thickness": 0.2,
+   "z_offset": 0.0
+  },
+  {
+   "id": "lvl_0_div",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "wall",
+   "a": [
+    5.0,
+    0.0
+   ],
+   "b": [
+    5.0,
+    7.0
+   ],
+   "thickness": 0.15,
+   "height": null,
+   "material_inner": null
+  },
+  {
+   "id": "front_door",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "wall_id": "lvl_0_w0",
+   "offset": 2.5,
+   "width": 1.0,
+   "height": 2.2,
+   "sill": 0.0,
+   "type": "door"
+  },
+  {
+   "id": "inner_door",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "wall_id": "lvl_0_div",
+   "offset": 3.5,
+   "width": 0.9,
+   "height": 2.1,
+   "sill": 0.0,
+   "type": "door"
+  },
+  {
+   "id": "win_a",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "wall_id": "lvl_0_w0",
+   "offset": 7.5,
+   "width": 1.4,
+   "height": 1.2,
+   "sill": 0.9,
+   "type": "window"
+  },
+  {
+   "id": "win_b",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "wall_id": "lvl_0_w1",
+   "offset": 3.5,
+   "width": 1.6,
+   "height": 1.2,
+   "sill": 0.9,
+   "type": "window"
+  },
+  {
+   "id": "win_c",
+   "level_id": "lvl_1",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "wall_id": "lvl_1_w0",
+   "offset": 5.0,
+   "width": 2.0,
+   "height": 1.2,
+   "sill": 0.9,
+   "type": "window"
+  },
+  {
+   "id": "win_d",
+   "level_id": "lvl_1",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "wall_id": "lvl_1_w2",
+   "offset": 5.0,
+   "width": 1.4,
+   "height": 1.2,
+   "sill": 0.9,
+   "type": "window"
+  },
+  {
+   "id": "col_porch",
+   "level_id": "lvl_0",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "column",
+   "pos": [
+    0.4,
+    -0.0
+   ],
+   "shape": "round",
+   "width": 0.3,
+   "depth": 0.4,
+   "height": null
+  },
+  {
+   "id": "roof",
+   "level_id": "lvl_1",
+   "name": null,
+   "material": null,
+   "module": null,
+   "overrides": [],
+   "props": {},
+   "type": "roof",
+   "kind": "gable",
+   "polygon": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     10.0,
+     0.0
+    ],
+    [
+     10.0,
+     7.0
+    ],
+    [
+     0.0,
+     7.0
+    ]
+   ],
+   "pitch_deg": 30.0,
+   "overhang": 0.3,
+   "thickness": 0.15,
+   "ridge_axis": "x"
+  }
+ ],
+ "export": {
+  "format": "glb",
+  "poly_preset": "medium",
+  "triangulate": true,
+  "collision": "convex",
+  "lod_levels": [
+   0.5,
+   0.25
+  ],
+  "lod_min_triangles": 150,
+  "pivot": "base_center",
+  "up_axis": "Y",
+  "scale": 1.0,
+  "uv": "box",
+  "split_per_level": true,
+  "keep_blend": false
+ },
+ "build_history": []
+}

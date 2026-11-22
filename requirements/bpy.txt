@@ -1,0 +1,2 @@
+# Separate environment (Python 3.11) so bpy never loads into an API process.
+-r ../apps/buildings/requirements-blender.txt

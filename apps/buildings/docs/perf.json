@@ -1,0 +1,202 @@
+{
+ "machine": {
+  "ram_total_mb": 8022,
+  "cpus": 2
+ },
+ "runs": [
+  {
+   "size": "small",
+   "run": 0,
+   "elements": 34,
+   "levels": 1,
+   "project_json_kb": 11.3,
+   "seconds": 2.27,
+   "ram_before_mb": 50,
+   "ram_peak_mb": 350,
+   "ram_after_mb": 83,
+   "py_peak_mb": 10.7,
+   "blender_peak_mb": 267.3,
+   "blender_seconds": 0.81,
+   "geometry_s": 1.401,
+   "geometry_peak_mb": 82.77,
+   "rebuilt": 34,
+   "cached": 0,
+   "tris_visual": 1542,
+   "tris_collision": 1070,
+   "objects": {
+    "visual": 34,
+    "collision": 53,
+    "lod": 0,
+    "materials": 6
+   },
+   "glb_kb": 210.4,
+   "leftover_blender_procs": []
+  },
+  {
+   "size": "small",
+   "run": 1,
+   "elements": 34,
+   "levels": 1,
+   "project_json_kb": 11.3,
+   "seconds": 0.97,
+   "ram_before_mb": 83,
+   "ram_peak_mb": 351,
+   "ram_after_mb": 83,
+   "py_peak_mb": 0.7,
+   "blender_peak_mb": 268.0,
+   "blender_seconds": 0.86,
+   "geometry_s": 0.017,
+   "geometry_peak_mb": 83.27,
+   "rebuilt": 0,
+   "cached": 34,
+   "tris_visual": 1542,
+   "tris_collision": 1070,
+   "objects": {
+    "visual": 34,
+    "collision": 53,
+    "lod": 0,
+    "materials": 6
+   },
+   "glb_kb": 210.4,
+   "leftover_blender_procs": []
+  },
+  {
+   "size": "small",
+   "edit_one_window": {
+    "rebuilt": 2,
+    "cached": 32,
+    "geometry_s": 0.036
+   }
+  },
+  {
+   "size": "medium",
+   "run": 0,
+   "elements": 301,
+   "levels": 3,
+   "project_json_kb": 86.2,
+   "seconds": 3.9,
+   "ram_before_mb": 84,
+   "ram_peak_mb": 411,
+   "ram_after_mb": 89,
+   "py_peak_mb": 6.1,
+   "blender_peak_mb": 325.3,
+   "blender_seconds": 2.24,
+   "geometry_s": 1.484,
+   "geometry_peak_mb": 86.02,
+   "rebuilt": 301,
+   "cached": 0,
+   "tris_visual": 13286,
+   "tris_collision": 9014,
+   "objects": {
+    "visual": 301,
+    "collision": 451,
+    "lod": 0,
+    "materials": 6
+   },
+   "glb_kb": 1730.3,
+   "leftover_blender_procs": []
+  },
+  {
+   "size": "medium",
+   "run": 1,
+   "elements": 301,
+   "levels": 3,
+   "project_json_kb": 86.2,
+   "seconds": 2.64,
+   "ram_before_mb": 89,
+   "ram_peak_mb": 415,
+   "ram_after_mb": 89,
+   "py_peak_mb": 6.0,
+   "blender_peak_mb": 325.9,
+   "blender_seconds": 2.33,
+   "geometry_s": 0.137,
+   "geometry_peak_mb": 88.9,
+   "rebuilt": 0,
+   "cached": 301,
+   "tris_visual": 13286,
+   "tris_collision": 9014,
+   "objects": {
+    "visual": 301,
+    "collision": 451,
+    "lod": 0,
+    "materials": 6
+   },
+   "glb_kb": 1730.3,
+   "leftover_blender_procs": []
+  },
+  {
+   "size": "medium",
+   "edit_one_window": {
+    "rebuilt": 2,
+    "cached": 299,
+    "geometry_s": 0.228
+   }
+  },
+  {
+   "size": "large",
+   "run": 0,
+   "elements": 2169,
+   "levels": 8,
+   "project_json_kb": 608.8,
+   "seconds": 31.45,
+   "ram_before_mb": 93,
+   "ram_peak_mb": 811,
+   "ram_after_mb": 152,
+   "py_peak_mb": 41.9,
+   "blender_peak_mb": 702.8,
+   "blender_seconds": 19.92,
+   "geometry_s": 10.676,
+   "geometry_peak_mb": 112.78,
+   "rebuilt": 2169,
+   "cached": 0,
+   "tris_visual": 93294,
+   "tris_collision": 62318,
+   "objects": {
+    "visual": 2169,
+    "collision": 3145,
+    "lod": 0,
+    "materials": 6
+   },
+   "glb_kb": 12174.4,
+   "leftover_blender_procs": []
+  },
+  {
+   "size": "large",
+   "run": 1,
+   "elements": 2169,
+   "levels": 8,
+   "project_json_kb": 608.8,
+   "seconds": 22.77,
+   "ram_before_mb": 152,
+   "ram_peak_mb": 853,
+   "ram_after_mb": 150,
+   "py_peak_mb": 41.8,
+   "blender_peak_mb": 701.8,
+   "blender_seconds": 20.67,
+   "geometry_s": 1.131,
+   "geometry_peak_mb": 151.62,
+   "rebuilt": 0,
+   "cached": 2169,
+   "tris_visual": 93294,
+   "tris_collision": 62318,
+   "objects": {
+    "visual": 2169,
+    "collision": 3145,
+    "lod": 0,
+    "materials": 6
+   },
+   "glb_kb": 12174.4,
+   "leftover_blender_procs": []
+  },
+  {
+   "size": "large",
+   "edit_one_window": {
+    "rebuilt": 2,
+    "cached": 2167,
+    "geometry_s": 1.391
+   }
+  }
+ ],
+ "process_rss_end_mb": 148,
+ "children_end": []
+}

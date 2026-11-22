@@ -1,0 +1,14 @@
+# builds and caches (rebuilt by installing.bat / update.bat)
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv*/
+# local logs / data / exports
+installing.log
+*.log
+data/
+exports/
+.env
