@@ -64,3 +64,37 @@ export async function viewshedApi(project: Project, x_m: number, y_m: number, he
   for (let i = 0; i < bin.length; i++) mask[i] = bin.charCodeAt(i);
   return { nx: j.nx, ny: j.ny, mask, visible_area_km2: j.visible_area_km2, visible_fraction_of_disc: j.visible_fraction_of_disc };
 }
+
+// ── تصدير GLB / .blend ──
+export interface Capabilities { glb: { available: boolean; max_resolution: number }; blend: { available: boolean; reason: string } }
+export async function exportCapabilities(refresh = false): Promise<Capabilities> {
+  return (await fetch(`/api/export-capabilities${refresh ? "?refresh=true" : ""}`)).json();
+}
+export async function startWorldExport(project: Project, fmt: "glb" | "blend"): Promise<{ job_id: string }> {
+  return (await post(`/api/export-world?fmt=${fmt}`, project)).json();
+}
+export async function worldJobStatus(id: string): Promise<{ state: "running" | "done" | "error"; done: number; total: number; error: string | null; stage: string | null }> {
+  return (await fetch(`/api/job/${id}`)).json();
+}
+export async function previewGlb(project: Project, res: number, tex: number, signal?: AbortSignal): Promise<{ data: ArrayBuffer; vertices: number; triangles: number }> {
+  const r = await post(`/api/preview-glb?res=${res}&tex=${tex}`, project, signal);
+  const rep = JSON.parse(r.headers.get("X-TF-Report") ?? "{}");
+  return { data: await r.arrayBuffer(), vertices: rep.vertices ?? 0, triangles: rep.triangles ?? 0 };
+}
+
+// ── خامات CC0 (1K) ──
+export interface TexHit { provider: string; id: string; name: string; categories: string[]; thumb: string | null; page: string }
+export interface TexRecord { provider: string; id: string; name: string; authors: string[]; source_url: string; license: string; resolution: string; ref: string; folder: string; files: Record<string, string>; credit: string; cached?: boolean }
+export interface TexProvider { id: string; title: string; credit: string; license: string; resolution: string }
+export async function texProviders(): Promise<TexProvider[]> { return (await fetch("/api/textures/providers")).json(); }
+export async function texSearch(provider: string, q: string): Promise<TexHit[]> {
+  const r = await fetch(`/api/textures/search?provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(q)}&limit=30`);
+  if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).detail as string) ?? `${r.status}`);
+  return (await r.json()).results;
+}
+export async function texFetch(provider: string, asset_id: string): Promise<TexRecord> { return (await post("/api/textures/fetch", { provider, asset_id })).json(); }
+export async function texCache(): Promise<TexRecord[]> {
+  return ((await (await fetch("/api/textures/cache")).json()).items as TexRecord[]).map((r) => ({ ...r, ref: `cc0:${r.provider}/${r.id}` }));
+}
+export async function texEnsure(refs: string[]): Promise<{ ref: string; ok: boolean; error?: string }[]> { return (await (await post("/api/textures/ensure", { refs })).json()).results; }
+export const texFileUrl = (r: { provider: string; id: string; files: Record<string, string> }) => `/api/textures/file/${r.provider}/${r.id}/${r.files.diff}`;

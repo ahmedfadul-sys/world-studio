@@ -96,3 +96,30 @@ progress { height:8px; accent-color:var(--accent); }
   .panel { max-height:50vh; }
   .stage { height:85vh; }
 }
+
+/* ── نافذة معاينة العالم 3D ── */
+.modal3d { position:fixed; inset:0; z-index:50; background:var(--bg); display:flex; flex-direction:column; }
+.m3d-bar { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--line); font-size:13px; }
+.m3d-bar label { display:flex; align-items:center; gap:6px; }
+.m3d-bar input[type=range] { width:90px; }
+.m3d-stage { position:relative; flex:1; min-height:0; }
+.m3d-stage canvas { display:block; width:100%; height:100%; }
+.m3d-note { position:absolute; inset-inline:0; top:12px; margin:auto; width:max-content; max-width:80%; padding:8px 14px; border-radius:6px; background:var(--panel); border:1px solid var(--line); }
+.m3d-note.error { background:var(--err-bg); border-color:var(--danger); }
+.m3d-foot { display:flex; gap:18px; justify-content:space-between; padding:6px 12px; background:var(--panel); border-top:1px solid var(--line); font-size:12px; color:var(--mute); }
+
+/* ── متصفّح الخامات المفتوحة ── */
+.texbrowser h3 { margin:12px 0 6px; font-size:13px; color:var(--accent); }
+.texbrowser .row { display:flex; gap:6px; }
+.texbrowser .row input { flex:1; min-width:0; }
+.texgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:6px 0; }
+.texcard { display:flex; flex-direction:column; gap:3px; padding:4px; font-size:11px; align-items:stretch; text-align:center; }
+.texcard.on { outline:2px solid var(--accent); }
+.texcard img, .texcard .noimg { width:100%; aspect-ratio:1; object-fit:cover; border-radius:4px; background:var(--panel2); display:grid; place-items:center; }
+.texcard span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.texcard em { color:var(--accent); font-style:normal; }
+.expfmt { display:flex; gap:6px; flex-wrap:wrap; }
+.expfmt button { flex:1; min-width:120px; }
+details.legacy { margin-top:10px; border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
+details.legacy summary { cursor:pointer; color:var(--mute); }
+.m3d-bar button, .m3d-bar select { width:auto; margin:0; }
