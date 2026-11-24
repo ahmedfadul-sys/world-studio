@@ -158,8 +158,10 @@ export function cloneElements(elements, ids, { dx = 0, dy = 0, rotDeg = 0, cente
     if (e.pos) c.pos = tp(e.pos)
     if (e.start) c.start = tp(e.start)
     if (e.polygon) c.polygon = e.polygon.map(tp)
+    if (e.path) c.path = e.path.map(tp)
     if (e.holes) c.holes = e.holes.map((h) => h.map(tp))
     if (e.type === 'stair') c.angle_deg = r6(e.angle_deg + rotDeg)
+    if (e.type === 'lamp') c.arm_deg = r6((e.arm_deg || 0) + rotDeg)
     if (e.type === 'decor') c.rotation_deg = r6((e.rotation_deg || 0) + rotDeg)
     out.push(c)
   }
@@ -196,6 +198,7 @@ export function centroid(elements, ids) {
     if (e.a) pts.push(e.a, e.b)
     else if (e.pos) pts.push(e.pos)
     else if (e.start) pts.push(e.start)
+    else if (e.path) pts.push(...e.path)
     else if (e.polygon) pts.push(...e.polygon)
   }
   if (!pts.length) return [0, 0]

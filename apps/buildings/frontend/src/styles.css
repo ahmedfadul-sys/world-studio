@@ -90,7 +90,7 @@ input[type='color'] { width: 56px; height: 34px; border: 1px solid var(--line); 
 
 .shape-bar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 4px; padding: 4px; border-radius: 8px; background: var(--panel, rgba(0,0,0,.5)); border: 1px solid var(--border, #444); }
 
-.wf-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 12px; }
+.wf-overlay { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55); display: grid; place-items: center; grid-template-rows: minmax(0, 1fr); padding: 12px; }
 .wf-dialog { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); width: min(1280px, 100%); height: min(780px, 100%); display: flex; flex-direction: column; min-height: 0; }
 .wf-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-block-end: 1px solid var(--line); flex-wrap: wrap; }
 .wf-body { flex: 1; min-height: 0; display: flex; }
@@ -123,10 +123,10 @@ input[type='color'] { width: 56px; height: 34px; border: 1px solid var(--line); 
 .room-size { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding-top: 6px; }
 .stair-tools, .plan-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-block: 6px; }
 .dlg-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 12px; }
-.dlg { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); width: min(460px, 100%); max-height: 100%; display: flex; flex-direction: column; }
+.dlg { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); width: min(460px, 100%); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); min-height: 0; display: flex; flex-direction: column; }
 .dlg-h { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-block-end: 1px solid var(--line); }
 .dlg-h h3 { margin: 0; }
-.dlg-b { padding: 10px 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.dlg-b { padding: 10px 12px; overflow-y: auto; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; }
 .dxf-layers { display: flex; flex-direction: column; gap: 2px; max-height: 140px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
 .small { font-size: 12px; }
 .ul-item { display:flex; flex-direction:column; gap:4px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--line); } .ul-cal { display:flex; flex-direction:column; gap:6px; padding:8px; border:1px dashed var(--sel, #4da3ff); border-radius:8px; } .row.between { display:flex; justify-content:space-between; gap:6px; }

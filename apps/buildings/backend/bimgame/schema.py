@@ -229,6 +229,11 @@ class Stair(_Base):
     rise: float = Field(default=0.18, gt=0)
     run: float = Field(default=0.28, gt=0)
     z_offset: float = 0.0   # raises the whole flight (second flight of an L/U stair starts at the landing)
+    # سلّم لولبي: `start` = مركز اللولب، `angle_deg` = زاوية بداية الدرجة الأولى، `width` = عرض الدرجة (من القطر الداخلي للخارج)
+    kind: Literal["straight", "spiral"] = "straight"
+    inner_radius: float = Field(default=0.3, ge=0)      # نصف قطر العمود المركزي
+    turn_deg: float = Field(default=360.0, gt=0, le=1440)  # الدوران الكلي للسلّم
+    clockwise: bool = False
 
 
 class Room(_Base):
@@ -248,8 +253,84 @@ class Decor(_Base):
     rotation_deg: float = 0.0
 
 
+ROAD_SURFACES = ("asphalt", "dirt", "stone", "gravel", "paving", "concrete", "sand")
+
+
+ROAD_MATERIALS = {
+    "asphalt": ("Asphalt", "#3a3b3e", 0.95), "dirt": ("Dirt road", "#8a6a44", 1.0), "stone": ("Stone road", "#8f8a7d", 0.9),
+    "gravel": ("Gravel", "#9a9488", 1.0), "paving": ("Paving", "#a9998a", 0.85), "concrete": ("Concrete road", "#9b9b9b", 0.9),
+    "sand": ("Sand", "#d8c690", 1.0), "sidewalk": ("Sidewalk", "#b9b6ae", 0.9),
+}
+
+
+def surface_material_id(surface: str) -> str:
+    return f"mat_road_{surface}"
+
+
+def with_surface_materials(materials: list["Material"]) -> list["Material"]:
+    """Project materials + the default road-surface materials that are missing (so roads always have a colour)."""
+    have = {m.id for m in materials}
+    extra = [Material(id=surface_material_id(k), name=n, color=c, roughness=r) for k, (n, c, r) in ROAD_MATERIALS.items()
+             if surface_material_id(k) not in have]
+    for mid, name, col in (("mat_lamp_pole", "Lamp pole", "#3b3f45"), ("mat_lamp_head", "Lamp head", "#fff2cc")):
+        if mid not in have:
+            extra.append(Material(id=mid, name=name, color=col))
+    return [*materials, *extra]
+
+
+class Road(_Base):
+    """طريق: خط المنتصف + عرض الطريق + عرض الرصيف على كل جانب. السطح يحدد الخامة ما لم تُحدَّد خامة صراحةً."""
+
+    type: Literal["road"] = "road"
+    path: list[Point] = Field(min_length=2, max_length=500)
+    width: float = Field(default=7.0, gt=0)
+    sidewalk: float = Field(default=1.5, ge=0)         # عرض الرصيف لكل جانب (0 = بلا رصيف)
+    surface: Literal["asphalt", "dirt", "stone", "gravel", "paving", "concrete", "sand"] = "asphalt"
+    curb_height: float = Field(default=0.15, ge=0)     # ارتفاع الرصيف عن سطح الطريق
+    thickness: float = Field(default=0.1, gt=0)
+    sidewalk_material: str | None = None
+    z_offset: float = 0.0
+
+
+class Lamp(_Base):
+    """عمود إنارة مع ضوء حقيقي (KHR_lights_punctual في GLB / OmniLight3D في Godot)."""
+
+    type: Literal["lamp"] = "lamp"
+    pos: Point
+    height: float = Field(default=5.0, gt=0)
+    arm: float = Field(default=0.0, ge=0)              # امتداد الذراع الأفقي (0 = رأس فوق العمود)
+    arm_deg: float = 0.0                               # اتجاه الذراع في المخطط
+    pole_radius: float = Field(default=0.06, gt=0)
+    light: bool = True
+    color: str = Field(default="#ffd9a0", pattern=r"^#[0-9a-fA-F]{6}$")
+    intensity: float = Field(default=300.0, ge=0)      # شمعة (cd) للـ glTF
+    range: float = Field(default=12.0, gt=0)           # متر
+    z_offset: float = 0.0
+
+
+class Guide(BaseModel):
+    """خطوط مخطط المدينة الوهمية: تظهر في المحرر ثنائي الأبعاد فقط ولا تدخل البناء ولا المعاينة ثلاثية الأبعاد ولا التصدير."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(default_factory=lambda: new_id("gd"))
+    name: str | None = None
+    kind: Literal["line", "parallel", "grid", "radial"] = "grid"
+    origin: Point = (0.0, 0.0)
+    angle_deg: float = 0.0
+    spacing_x: float = Field(default=50.0, gt=0)
+    spacing_y: float = Field(default=50.0, gt=0)
+    count_x: int = Field(default=6, ge=1, le=200)
+    count_y: int = Field(default=6, ge=1, le=200)
+    length: float = Field(default=300.0, gt=0)
+    b: Point | None = None                             # نقطة النهاية لخط مفرد
+    color: str = "#35c4ff"
+    visible: bool = True
+    locked: bool = False
+
+
 Element = Annotated[
-    Union[Wall, Door, Window, CustomOpening, Column, Beam, Floor, Roof, Stair, Room, Decor],
+    Union[Wall, Door, Window, CustomOpening, Column, Beam, Floor, Roof, Stair, Room, Decor, Road, Lamp],
     Field(discriminator="type"),
 ]
 
@@ -403,6 +484,7 @@ class Project(BaseModel):
     materials: list[Material] = Field(default_factory=list)
     modules: list[ModuleDef] = Field(default_factory=list)
     elements: list[Element] = Field(default_factory=list)
+    guides: list[Guide] = Field(default_factory=list, max_length=200)
     underlays: list[Underlay] = Field(default_factory=list, max_length=20)
     templates: list[Template] = Field(default_factory=list, max_length=200)
     export: ExportSettings = Field(default_factory=ExportSettings)

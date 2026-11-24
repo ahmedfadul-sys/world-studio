@@ -3,6 +3,8 @@ import { Circle, Group, Layer, Line, Rect, Shape, Stage, Text } from 'react-konv
 import { useApp } from '../store.jsx'
 import { activeFields } from '../templates.js'
 import UnderlayLayer from './UnderlayLayer.jsx'
+import { guideLines, guideSnap, makeGuide } from '../guides.js'
+import { ensureRoadMaterials, makeRoad, ROAD_PRESETS } from '../roads.js'
 import {
   bbox, clampOpenings, deleteElements, dist, fmtLen, gridStep, handlesOf, hitTest, levelEndpoints, makeElement, moveElements,
   moveHandle, openingRect, orthoPoint, placeOpening, polygonArea, snapPoint, snapStep, stairRect, wallExtensions,
@@ -18,10 +20,10 @@ let CLIP = null   // copied elements survive tab switches: {elements, ids, n}
 const PALETTE = {
   dark: { bg: '#14171c', grid: '#1f242b', major: '#2c333d', wall: '#8c95a3', wallS: '#d5dbe4', floor: 'rgba(79,127,181,0.14)', floorS: '#4f7fb5',
     column: '#c9a36a', beam: '#b58cd6', roof: '#d17a5a', stair: '#7fb98a', room: 'rgba(120,200,160,0.10)', roomS: '#5fa783', sel: '#3da5ff',
-    ghost: '#3a424e', door: '#e7b04a', win: '#5fc3e8', text: '#d5dbe4', textBg: 'rgba(20,23,28,0.82)', decor: '#9aa3b2', snap: '#ffd24a' },
+    ghost: '#3a424e', door: '#e7b04a', win: '#5fc3e8', text: '#d5dbe4', textBg: 'rgba(20,23,28,0.82)', decor: '#9aa3b2', snap: '#ffd24a', road: 'rgba(110,112,120,0.55)', walk: 'rgba(190,186,172,0.45)', lamp: '#ffd24a' },
   light: { bg: '#f6f3ec', grid: '#e7e3d9', major: '#d6d1c4', wall: '#6d7684', wallS: '#2d333c', floor: 'rgba(60,110,170,0.12)', floorS: '#3d6ea8',
     column: '#a47a38', beam: '#8e5eb3', roof: '#bb5a39', stair: '#4a9a5c', room: 'rgba(60,160,120,0.12)', roomS: '#2f8b66', sel: '#0a72d6',
-    ghost: '#c9c4b6', door: '#b9791a', win: '#1b8cb5', text: '#2d333c', textBg: 'rgba(246,243,236,0.85)', decor: '#6d7684', snap: '#d98a00' },
+    ghost: '#c9c4b6', door: '#b9791a', win: '#1b8cb5', text: '#2d333c', textBg: 'rgba(246,243,236,0.85)', decor: '#6d7684', snap: '#d98a00', road: 'rgba(80,82,90,0.45)', walk: 'rgba(160,150,130,0.45)', lamp: '#d98a00' },
 }
 
 const flat = (pts) => pts.flatMap((p) => p)
@@ -106,7 +108,42 @@ function Elem({ e, byId, ext, pal, selected, ghost }) {
     case 'floor': return <Line points={flat(e.polygon)} closed fill={ghost ? 'transparent' : pal.floor} stroke={sel || (ghost ? pal.ghost : pal.floorS)} strokeWidth={sw} strokeScaleEnabled={false} opacity={op} listening={false} />
     case 'roof': return <Line points={flat(e.polygon)} closed stroke={sel || pal.roof} strokeWidth={sw} dash={[2, 6]} strokeScaleEnabled={false} opacity={ghost ? 0.2 : 0.9} listening={false} />
     case 'room': return <Line points={flat(e.polygon)} closed fill={pal.room} stroke={sel || pal.roomS} strokeWidth={sw} strokeScaleEnabled={false} opacity={ghost ? 0.3 : 1} listening={false} />
+    case 'road': {
+      const pts = flat(e.path)
+      return (
+        <Group listening={false} opacity={ghost ? 0.3 : 1}>
+          {e.sidewalk > 0 && <Line points={pts} stroke={pal.walk} strokeWidth={e.width + 2 * e.sidewalk} lineCap="butt" lineJoin="miter" />}
+          <Line points={pts} stroke={sel || pal.road} strokeWidth={e.width} lineCap="butt" lineJoin="miter" />
+          <Line points={pts} stroke={sel || pal.wallS} strokeWidth={1} dash={[6, 6]} strokeScaleEnabled={false} />
+        </Group>
+      )
+    }
+    case 'lamp': {
+      const a = (e.arm_deg * Math.PI) / 180, tip = [e.pos[0] + Math.cos(a) * e.arm, e.pos[1] + Math.sin(a) * e.arm]
+      return (
+        <Group listening={false} opacity={ghost ? 0.4 : 1}>
+          {e.light && <Circle x={tip[0]} y={tip[1]} radius={e.range} stroke={pal.lamp} strokeWidth={1} dash={[3, 5]} opacity={0.35} strokeScaleEnabled={false} />}
+          {e.arm > 0 && <Line points={flat([e.pos, tip])} stroke={sel || pal.lamp} strokeWidth={2} strokeScaleEnabled={false} />}
+          <Circle x={tip[0]} y={tip[1]} radius={Math.max(e.pole_radius * 2.2, 0.15)} fill={pal.lamp} stroke={sel || pal.wallS} strokeWidth={sw} strokeScaleEnabled={false} />
+          <Circle x={e.pos[0]} y={e.pos[1]} radius={Math.max(e.pole_radius * 1.4, 0.08)} fill={pal.wallS} />
+        </Group>
+      )
+    }
     case 'stair': {
+      if (e.kind === 'spiral') {
+        const ro = e.inner_radius + e.width, a0 = (e.angle_deg * Math.PI) / 180, sg = e.clockwise ? -1 : 1, dth = (sg * (e.turn_deg * Math.PI) / 180) / e.steps
+        const spokes = []
+        for (let i = 0; i <= e.steps; i++) { const a = a0 + dth * i; spokes.push(flat([[e.start[0] + e.inner_radius * Math.cos(a), e.start[1] + e.inner_radius * Math.sin(a)], [e.start[0] + ro * Math.cos(a), e.start[1] + ro * Math.sin(a)]])) }
+        const tipA = a0 + dth * e.steps
+        return (
+          <Group listening={false} opacity={ghost ? 0.3 : 1}>
+            <Circle x={e.start[0]} y={e.start[1]} radius={ro} fill={pal.bg} stroke={sel || pal.stair} strokeWidth={sw} strokeScaleEnabled={false} />
+            <Circle x={e.start[0]} y={e.start[1]} radius={Math.max(e.inner_radius, 0.01)} stroke={sel || pal.stair} strokeWidth={1} strokeScaleEnabled={false} />
+            {spokes.map((l, i) => <Line key={i} points={l} stroke={sel || pal.stair} strokeWidth={1} strokeScaleEnabled={false} />)}
+            <Line points={flat([e.start, [e.start[0] + ro * 1.15 * Math.cos(tipA), e.start[1] + ro * 1.15 * Math.sin(tipA)]])} stroke={sel || pal.stair} strokeWidth={1.5} dash={[4, 3]} strokeScaleEnabled={false} />
+          </Group>
+        )
+      }
       const r = stairRect(e)
       const lines = []
       for (let i = 1; i < e.steps; i++) { const f = i / e.steps; lines.push(flat([[r[0][0] + (r[1][0] - r[0][0]) * f, r[0][1] + (r[1][1] - r[0][1]) * f], [r[3][0] + (r[2][0] - r[3][0]) * f, r[3][1] + (r[2][1] - r[3][1]) * f]])) }
@@ -130,7 +167,7 @@ function Elem({ e, byId, ext, pal, selected, ghost }) {
   }
 }
 
-const TOOL_HINT = { wall: 'hint_wall', circle: 'hint_circle', arc: 'hint_arc', floor: 'hint_poly', roof: 'hint_poly', room: 'hint_poly', beam: 'hint_beam', door: 'hint_host', window: 'hint_host', opening: 'hint_host', column: 'hint_place', decor: 'hint_place', stair: 'hint_beam', roomwiz: 'hint_roomwiz', select: 'hint_select', move: 'hint_select', delete: 'hint_select', hand: 'hint_pan' }
+const TOOL_HINT = { wall: 'hint_wall', circle: 'hint_circle', arc: 'hint_arc', floor: 'hint_poly', roof: 'hint_poly', room: 'hint_poly', beam: 'hint_beam', door: 'hint_host', window: 'hint_host', opening: 'hint_host', column: 'hint_place', decor: 'hint_place', lamp: 'hint_place', road: 'hint_road', guide: 'hint_guide', stair: 'hint_beam', roomwiz: 'hint_roomwiz', select: 'hint_select', move: 'hint_select', delete: 'hint_select', hand: 'hint_pan' }
 const POLY_TOOLS = ['floor', 'roof', 'room']
 
 /** TerrainForge site footprint (centre = 0,0; metres): where the buildings of this project will stand on the terrain pad. */
@@ -195,6 +232,7 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
 
   useEffect(() => { if (!app.view && measured) fit() }, [app.view, measured]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { window.__bimFit = fit; return () => { delete window.__bimFit } }, [fit])
+  useEffect(() => { window.__bimView = () => { const c = toW(size.w / 2, size.h / 2); return [Math.round(c[0] / sstep) * sstep, Math.round(c[1] / sstep) * sstep] }; return () => { delete window.__bimView } })
   useEffect(() => { window.__bimToS = (p) => [p[0] * view.scale + view.x, -p[1] * view.scale + view.y]; return () => { delete window.__bimToS } })
 
   const base = project.elements
@@ -224,7 +262,20 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
     let p = raw
     const prev = draft.length && (tool === 'wall' || tool === 'beam' || tool === 'stair') ? draft[draft.length - 1] : null
     if (prev && shift.current) p = orthoPoint(prev, raw)
-    return snapPoint(p, { step: sstep, enabled: project.editor.snap_enabled, endpoints: [...levelEndpoints(base, levelId), ...extra], walls: tool === 'wall' || tool === 'beam' ? walls : [], tol })
+    const sn = snapPoint(p, { step: sstep, enabled: project.editor.snap_enabled, endpoints: [...levelEndpoints(base, levelId), ...extra], walls: tool === 'wall' || tool === 'beam' ? walls : [], tol })
+    if (project.editor.snap_enabled && (sn.kind === 'grid' || sn.kind === 'free') && (project.guides || []).length) return guideSnap(raw, project.guides, tol) || sn   // خطوط المخطط تتفوق على الشبكة
+    return sn
+  }
+
+  // الطرق: خط منتصف متعدد النقاط (نقر مزدوج أو Enter للإنهاء)
+  const roadSpec = app.roadSpec || { surface: 'asphalt', ...ROAD_PRESETS.asphalt }
+  const finishRoad = (pts = draft) => {
+    if (pts.length >= 2) {
+      const r = makeRoad(pts.map((q) => [...q]), levelId, unit, roadSpec)
+      edit((pr) => ({ ...pr, materials: ensureRoadMaterials(pr.materials, [r.surface]), elements: [...pr.elements, r] }))
+      app.select([r.id])
+    }
+    setDraft([])
   }
 
   const edit = (fn, key) => app.edit(fn, key)
@@ -325,6 +376,7 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
     const dbl = now - lc.t < 400 && Math.hypot(sp[0] - lc.x, sp[1] - lc.y) < 8
     lastClick.current = dbl ? { t: 0, x: -99, y: -99 } : { t: now, x: sp[0], y: sp[1] }
     if (dbl && tool === 'wall') { setDraft([]); return }
+    if (dbl && tool === 'road') { finishRoad(); return }
     if (dbl && POLY_TOOLS.includes(tool) && shape === 'poly') { finishPoly(); return }
 
     if (tool === 'select' || tool === 'move') {
@@ -357,6 +409,14 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
       return
     }
     if (tool === 'wall') { wallTo(p); return }
+    if (tool === 'road') { if (!draft.length || dist(draft[draft.length - 1], p) > 1e-6) setDraft([...draft, p]); return }
+    if (tool === 'lamp') { add(mk('lamp', levelId, unit, { pos: p })); return }
+    if (tool === 'guide') {
+      if (!draft.length) { setDraft([p]); return }
+      if (dist(draft[0], p) < 1e-6) return
+      const g = makeGuide('line', unit, { origin: draft[0], b: p })
+      edit((pr) => ({ ...pr, guides: [...(pr.guides || []), g] })); setDraft([]); return
+    }
     if (tool === 'roomwiz') { placeRoomAt(p); return }
     if (tool === 'circle') {
       if (!draft.length) { setDraft([p]); return }
@@ -540,9 +600,9 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
       }
       if (e.key === 'Delete' || e.key === 'Backspace') { if (selection.length) { e.preventDefault(); const sel = selection; edit((pr) => ({ ...pr, elements: deleteElements(pr.elements, sel) })) } return }
       if (e.key === 'Escape') { if (draft.length) setDraft([]); else if (selection.length) app.select([]); else app.set({ tool: 'select' }); return }
-      if (e.key === 'Enter') { if (POLY_TOOLS.includes(tool)) finishPoly(); else if (tool === 'wall') setDraft([]); return }
+      if (e.key === 'Enter') { if (POLY_TOOLS.includes(tool)) finishPoly(); else if (tool === 'wall') setDraft([]); else if (tool === 'road') finishRoad(); return }
       if (mod) return
-      const map = { t: 'roomwiz', v: 'select', m: 'move', h: 'hand', w: 'wall', d: 'door', n: 'window', c: 'column', b: 'beam', f: 'floor', r: 'roof', s: 'stair', o: 'opening', g: 'room', x: 'delete', q: 'circle', a: 'arc' }
+      const map = { t: 'roomwiz', v: 'select', m: 'move', h: 'hand', w: 'wall', d: 'door', n: 'window', c: 'column', b: 'beam', f: 'floor', r: 'roof', s: 'stair', o: 'opening', g: 'room', x: 'delete', q: 'circle', a: 'arc', p: 'road', l: 'lamp', i: 'guide' }
       const nt = map[e.key.toLowerCase()]
       if (nt) { app.set({ tool: nt }); setDraft([]) }
     }
@@ -610,6 +670,17 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
       live.push(<Line key="lw" points={flat([last, lc.p])} stroke={pal.sel} strokeWidth={Math.max(1, 0.2 * view.scale)} strokeScaleEnabled={false} opacity={0.6} listening={false} lineCap="butt" />)
       const L = dist(last, lc.p); const ang = (Math.atan2(lc.p[1] - last[1], lc.p[0] - last[0]) * 180) / Math.PI
       liveText = LTR(`${fmtLen(L, unit)}  ∠${ang.toFixed(0)}°`)
+    } else if (tool === 'road') {
+      const pts = [...draft, lc.p]
+      const wd = roadSpec.width ? roadSpec.width * ({ m: 1, cm: 100, mm: 1000, ft: 3.28084, in: 39.3701 }[unit]) : 0
+      const sw2 = (roadSpec.sidewalk || 0) * ({ m: 1, cm: 100, mm: 1000, ft: 3.28084, in: 39.3701 }[unit])
+      if (sw2 > 0) live.push(<Line key="lrs" points={flat(pts)} stroke={pal.walk} strokeWidth={wd + 2 * sw2} listening={false} />)
+      live.push(<Line key="lr" points={flat(pts)} stroke={pal.sel} strokeWidth={wd} opacity={0.45} listening={false} />)
+      live.push(<Line key="lrc" points={flat(pts)} stroke={pal.sel} strokeWidth={1.5} dash={[6, 4]} strokeScaleEnabled={false} listening={false} />)
+      liveText = LTR(fmtLen(pts.slice(1).reduce((a, q, i) => a + dist(pts[i], q), 0), unit))
+    } else if (tool === 'guide') {
+      live.push(<Line key="lg" points={flat([last, lc.p])} stroke="#35c4ff" strokeWidth={1.5} dash={[10, 6]} strokeScaleEnabled={false} listening={false} />)
+      liveText = LTR(fmtLen(dist(last, lc.p), unit))
     } else if (tool === 'circle') {
       const rr = dist(last, lc.p)
       const pts = arcPoints(last, rr, 0, 2 * Math.PI, 72)
@@ -659,6 +730,11 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
           <GridShape view={view} size={size} step={gstep} pal={pal} />
         </Layer>
         <UnderlayLayer underlays={project.underlays} pid={project.id} levelId={levelId} view={view} />
+        <Layer listening={false}>
+          <Group x={view.x} y={view.y} scaleX={view.scale} scaleY={-view.scale}>
+            {(project.guides || []).filter((g) => g.visible).map((g) => guideLines(g).map((pl, i) => <Line key={g.id + i} points={flat(pl)} stroke={g.color} strokeWidth={1} dash={[10, 6]} opacity={0.75} strokeScaleEnabled={false} />))}
+          </Group>
+        </Layer>
         <Layer listening={false}>
           <Group x={view.x} y={view.y} scaleX={view.scale} scaleY={-view.scale}>
             {project.site && <SiteGuide site={project.site} k={view.scale} pal={pal} u={{ m: 1, cm: 100, mm: 1000, ft: 3.28084, in: 39.3701 }[unit]} />}

@@ -4,11 +4,12 @@ import { Field, NumField, Select, Toggle } from '../ui.jsx'
 import { fromM, UNITS } from '../model.js'
 import { arrayLinear, arrayPolar, centroid } from '../plan.js'
 import { DxfError, dxfToWalls, parseDxf } from '../dxf.js'
-import { bbox, uid } from '../model.js'
+import { bbox, moveElements, uid } from '../model.js'
 import { centredUnderlay } from '../plan.js'
 import { clearDebris, ruinElements } from '../ruin.js'
 import { buildPlaza, PLAZA_SHAPES } from '../plaza.js'
 import { autoFloors, buildVilla, levelsFor, planVilla } from '../villa.js'
+import { buildTower, ensureLevels, TOWER_DEFAULTS, towerProblems } from '../tower.js'
 import { openPdf, prepareImage, uploadUnderlay } from '../underlay.js'
 
 export function Dialog({ title, onClose, children, testid }) {
@@ -201,7 +202,10 @@ export function VillaDialog({ onClose }) {
   const [style, setStyle] = useState('villa')
   const [floors, setFloors] = useState(0)
   const [aspect, setAspect] = useState(1.5)
-  const [replace, setReplace] = useState(true)
+  const [replace, setReplace] = useState(() => project.elements.length === 0)
+  // الموضع (م): الزاوية الجنوبية الغربية للمبنى؛ افتراضيًا يُوضع يمين المباني الموجودة بمسافة 15 م فلا يتراكب مع شيء
+  const kM = UNITS[unit].toM
+  const [pos, setPos] = useState(() => { const bb = project.elements.length ? bbox(project.elements) : null; return bb ? { x: +(bb.x1 * kM + 15).toFixed(2), y: +(bb.y0 * kM).toFixed(2) } : { x: 0, y: 0 } })
   const plan = useMemo(() => { try { return area >= 60 && area <= 40000 ? planVilla({ area, style, floors, aspect }) : null } catch { return null } }, [area, style, floors, aspect])
   const apply = () => {
     if (!plan) return
@@ -209,13 +213,15 @@ export function VillaDialog({ onClose }) {
     const levels = levelsFor(plan, replace ? project.levels : project.levels, unit)
     const label = (ty) => t('rt_' + ty)
     const res = buildVilla(plan, levels.map((l) => l.id), unit, { label })
+    const ids = res.elements.map((e) => e.id)
+    const placed = moveElements(res.elements, ids, fromM(pos.x, unit), fromM(pos.y, unit))
     app.edit((p) => {
-      const keep = replace ? [] : p.elements.filter((e) => levels.every((l) => l.id !== e.level_id))
+      const keep = replace ? [] : p.elements
       const extra = p.levels.filter((l) => !levels.some((n) => n.id === l.id))
-      return { ...p, levels: [...levels, ...(replace ? [] : extra)], elements: [...keep, ...res.elements] }
+      return { ...p, levels: [...levels, ...(replace ? [] : extra)], elements: [...keep, ...placed] }
     })
     app.set({ levelId: levels[0].id })
-    app.select([])
+    app.select(ids)
     app.toast(`${t('vl_done')}: ${res.stats.rooms} ${t('vl_rooms')}, ${res.stats.walls} ${t('vl_walls')}`, 'info')
     onClose()
   }
@@ -231,6 +237,7 @@ export function VillaDialog({ onClose }) {
       <Select label={t('vl_floors')} value={String(floors)} onChange={(v) => setFloors(Number(v))} options={[{ value: '0', label: `${t('vl_auto')} (${autoFloors(area, style)})` }, ...[1, 2, 3, 4].map((n) => ({ value: String(n), label: String(n) }))]} />
       <Field label={t('vl_aspect')}><NumField value={aspect} min={1} max={3} step={0.1} onChange={setAspect} /></Field>
       <Toggle checked={replace} label={t('vl_replace')} onChange={setReplace} />
+      <div className="row"><NumField label="X (m)" value={pos.x} step={1} onChange={(v) => setPos((q) => ({ ...q, x: v }))} /><NumField label="Y (m)" value={pos.y} step={1} onChange={(v) => setPos((q) => ({ ...q, y: v }))} /></div>
       {plan && <p className="vl-sum" data-testid="vl-summary">{t('vl_result')}: <b>{plan.W} × {plan.D} m</b> · {plan.floors} {t('vl_levels')} · <b>{plan.total} m²</b> ({plan.perLevel.toFixed(0)} m² / {t('vl_level')})</p>}
       <div className="row"><button type="button" className="btn primary" data-testid="vl-go" disabled={!plan} onClick={apply}>{t('vl_generate')}</button></div>
     </Dialog>
@@ -309,6 +316,48 @@ export function PlazaDialog({ onClose }) {
       {P.colN >= 3 && N(t('pz_colh') + ' (m)', 'colH', 1, 20)}
       <div className="row">{N('X (m)', 'cx')}{N('Y (m)', 'cy')}</div>
       <button type="button" className="btn primary" data-testid="pz-apply" onClick={apply}>{t('pz_apply')}</button>
+    </Dialog>
+  )
+}
+
+/** Circular multi-storey tower with a spiral stair: choose size/floors, then it is placed at X/Y (default: right of existing buildings). */
+export function TowerDialog({ onClose }) {
+  const app = useApp()
+  const { t, project } = app
+  const unit = project.units.name
+  const k = UNITS[unit].toM
+  const [P, setP] = useState(() => {
+    const bb = project.elements.length ? bbox(project.elements) : null
+    const r = TOWER_DEFAULTS.radiusM
+    return { ...TOWER_DEFAULTS, cx: bb ? +(bb.x1 * k + 15 + r).toFixed(2) : 0, cy: bb ? +(((bb.y0 + bb.y1) / 2) * k).toFixed(2) : 0 }
+  })
+  const up = (o) => setP((x) => ({ ...x, ...o }))
+  const problems = towerProblems(P)
+  const apply = () => {
+    if (problems.length) return
+    const levels = ensureLevels(project.levels, P.floors, P.floorHeightM, unit)
+    const { elements } = buildTower(P, [fromM(P.cx, unit), fromM(P.cy, unit)], levels, unit)
+    app.edit((p) => ({ ...p, levels, elements: [...p.elements, ...elements] }))
+    app.set({ levelId: levels[0].id, selection: elements.map((e) => e.id) })
+    onClose()
+  }
+  const N = (label, key, min, max, step = 'any') => <NumField label={label} value={P[key]} min={min} max={max} step={step} onChange={(v) => up({ [key]: v })} />
+  return (
+    <Dialog title={t('tw_title')} onClose={onClose} testid="tower-dialog">
+      <p className="muted small">{t('tw_hint')}</p>
+      {N(t('tw_floors'), 'floors', 1, 40, 1)}
+      {N(t('tw_floor_h') + ' (m)', 'floorHeightM', 2, 8)}
+      {N(t('tw_radius') + ' (m)', 'radiusM', 2, 40)}
+      {N(t('tw_wall') + ' (m)', 'wallThicknessM', 0.1, 2)}
+      {N(t('tw_win_every'), 'windowsEvery', 0, 12, 1)}
+      {N(t('tw_stair_w') + ' (m)', 'stairWidthM', 0.6, 3)}
+      {N(t('tw_turn') + ' (°)', 'stairTurnDeg', 90, 720)}
+      <Toggle checked={P.clockwise} label={t('tw_cw')} onChange={(v) => up({ clockwise: v })} />
+      <Toggle checked={P.centreHole} label={t('tw_hole')} onChange={(v) => up({ centreHole: v })} />
+      <Select label={t('tw_roof')} value={P.roof} onChange={(v) => up({ roof: v })} options={['cone', 'dome', 'flat', 'none'].map((r) => ({ value: r, label: t('tw_roof_' + r) }))} />
+      <div className="row">{N('X (m)', 'cx')}{N('Y (m)', 'cy')}</div>
+      {problems.map((x) => <p key={x} className="muted small" role="alert">{t('tw_err_' + x)}</p>)}
+      <button type="button" className="btn primary" data-testid="tw-apply" disabled={problems.length > 0} onClick={apply}>{t('tw_apply')}</button>
     </Dialog>
   )
 }

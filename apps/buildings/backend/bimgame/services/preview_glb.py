@@ -92,9 +92,24 @@ def write_preview_glb(parts: dict, gdir: Path, materials: list[dict], out_path: 
         nodes.append({"name": f"{info.get('type', 'part')}_{eid}", "mesh": len(meshes_json) - 1,
                       "extras": {"bim_id": eid, "bim_type": info.get("type"), "bim_level": info.get("level")}})
 
+    # أعمدة الإنارة: ضوء نقطي KHR_lights_punctual (الموضع بنفس تحويل المحاور)
+    lights_json: list[dict] = []
+    for eid, info, _m, _s in loaded:
+        lt = info.get("light")
+        if not lt:
+            continue
+        pos = conv(np.array([lt["pos"]], np.float64))[0]
+        lights_json.append({"type": "point", "color": [round(int(lt["color"][i:i + 2], 16) / 255, 4) for i in (1, 3, 5)],
+                            "intensity": float(lt["intensity"]), "range": float(lt["range"]), "name": f"light_{eid}"})
+        nodes.append({"name": f"light_{eid}", "translation": [round(float(x), 5) for x in pos],
+                      "extensions": {"KHR_lights_punctual": {"light": len(lights_json) - 1}}})
+
     gltf = {"asset": {"version": "2.0", "generator": "BIM Builder fast preview"},
             "scene": 0, "scenes": [{"nodes": list(range(len(nodes)))}], "nodes": nodes, "meshes": meshes_json,
             "materials": gl_materials, "accessors": accessors, "bufferViews": views, "buffers": [{"byteLength": offset}]}
+    if lights_json:
+        gltf["extensionsUsed"] = ["KHR_lights_punctual"]
+        gltf["extensions"] = {"KHR_lights_punctual": {"lights": lights_json}}
     js = json.dumps(gltf, separators=(",", ":")).encode()
     js += b" " * (-len(js) % 4)
     blob = b"".join(bin_parts)

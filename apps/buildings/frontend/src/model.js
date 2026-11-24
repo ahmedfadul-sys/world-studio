@@ -40,9 +40,11 @@ export function defaults(type, unit) {
     case 'beam': return { width: u(0.25), depth: u(0.4) }
     case 'floor': return { kind: 'floor', thickness: u(0.2), z_offset: 0, holes: [] }
     case 'roof': return { kind: 'gable', pitch_deg: 30, overhang: u(0.3), thickness: u(0.15), ridge_axis: 'x' }
-    case 'stair': return { angle_deg: 0, width: u(1.0), steps: 15, rise: u(0.18), run: u(0.28) }
+    case 'stair': return { angle_deg: 0, width: u(1.0), steps: 15, rise: u(0.18), run: u(0.28), kind: 'straight', inner_radius: u(0.3), turn_deg: 360, clockwise: false }
     case 'room': return { room_type: 'generic' }
     case 'decor': return { z: 0, size: [u(0.3), u(0.3), u(0.3)], shape: 'box', rotation_deg: 0 }
+    case 'road': return { width: u(7), sidewalk: u(1.5), surface: 'asphalt', curb_height: u(0.15), thickness: u(0.1), sidewalk_material: null, z_offset: 0 }
+    case 'lamp': return { height: u(5), arm: 0, arm_deg: 0, pole_radius: u(0.06), light: true, color: '#ffd9a0', intensity: 300, range: u(12), z_offset: 0 }
     default: return {}
   }
 }
@@ -121,7 +123,8 @@ export function levelEndpoints(elements, levelId) {
   for (const e of elements) {
     if (e.level_id !== levelId) continue
     if (e.type === 'wall' || e.type === 'beam') pts.push(e.a, e.b)
-    else if (e.type === 'column') pts.push(e.pos)
+    else if (e.type === 'column' || e.type === 'lamp') pts.push(e.pos)
+    else if (e.type === 'road') pts.push(...e.path)
     else if (e.type === 'floor' || e.type === 'roof' || e.type === 'room') pts.push(...e.polygon)
   }
   return pts
@@ -152,7 +155,7 @@ export function placeOpening(type, p, elements, levelId, unit, tol, snap = 0) {
 }
 
 // ---------------------------------------------------------------- hit testing
-const PRIO = { door: 0, window: 0, opening: 0, column: 1, decor: 1, stair: 2, beam: 3, wall: 4, floor: 6, room: 7, roof: 5 }
+const PRIO = { door: 0, window: 0, opening: 0, lamp: 0, column: 1, decor: 1, stair: 2, beam: 3, wall: 4, road: 5, floor: 6, room: 7, roof: 5 }
 
 export function hitTest(p, elements, levelId, tol) {
   const walls = new Map(elements.filter((e) => e.type === 'wall').map((w) => [w.id, w]))
@@ -179,7 +182,17 @@ export function hitTest(p, elements, levelId, tol) {
       case 'beam': { const s = projectOnSegment(p, e.a, e.b); if (s.d <= e.width / 2 + tol) consider(e, s.d); break }
       case 'floor': case 'roof': case 'room':
         if (pointInPolygon(p, e.polygon)) consider(e, polygonArea(e.polygon)); break
-      case 'stair': if (pointInPolygon(p, stairRect(e))) consider(e, 0); break
+      case 'stair':
+        if (e.kind === 'spiral' ? dist(p, e.start) <= e.inner_radius + e.width + tol : pointInPolygon(p, stairRect(e))) consider(e, 0)
+        break
+      case 'lamp': if (dist(p, e.pos) <= Math.max(e.pole_radius * 2, 0) + tol * 1.2) consider(e, dist(p, e.pos)); break
+      case 'road': {
+        const reach = e.width / 2 + e.sidewalk + tol * 0.2
+        let dmin = Infinity
+        for (let i = 0; i + 1 < e.path.length; i++) dmin = Math.min(dmin, projectOnSegment(p, e.path[i], e.path[i + 1]).d)
+        if (dmin <= reach) consider(e, dmin)
+        break
+      }
       case 'decor': if (dist(p, e.pos) <= Math.max(...e.size) / 2 + tol) consider(e, dist(p, e.pos)); break
       default: break
     }
@@ -197,10 +210,11 @@ export function moveElements(elements, ids, dx, dy) {
     if (!set.has(e.id)) return e
     switch (e.type) {
       case 'wall': case 'beam': return { ...e, a: mv(e.a, dx, dy), b: mv(e.b, dx, dy) }
-      case 'column': case 'decor': return { ...e, pos: mv(e.pos, dx, dy) }
+      case 'column': case 'decor': case 'lamp': return { ...e, pos: mv(e.pos, dx, dy) }
       case 'floor': case 'roof': case 'room':
         return { ...e, polygon: e.polygon.map((p) => mv(p, dx, dy)), ...(e.holes ? { holes: e.holes.map((h) => h.map((p) => mv(p, dx, dy))) } : {}) }
       case 'stair': return { ...e, start: mv(e.start, dx, dy) }
+      case 'road': return { ...e, path: e.path.map((q) => mv(q, dx, dy)) }
       case 'door': case 'window': case 'opening': {
         const w = walls.get(e.wall_id)
         if (!w || set.has(w.id)) return e // moves with its host wall
@@ -235,6 +249,7 @@ export function bbox(elements, levelId) {
     if (e.a) { add(e.a); add(e.b) }
     else if (e.pos) add(e.pos)
     else if (e.start) add(e.start)
+    else if (e.path) e.path.forEach(add)
     else if (e.polygon) e.polygon.forEach(add)
   }
   return x0 === Infinity ? null : { x0, y0, x1, y1 }
@@ -244,7 +259,8 @@ export function bbox(elements, levelId) {
 const LEN_FIELDS = {
   wall: ['thickness', 'height'], door: ['offset', 'width', 'height', 'sill'], window: ['offset', 'width', 'height', 'sill'],
   opening: ['offset', 'width', 'height', 'sill'], column: ['width', 'depth', 'height'], beam: ['width', 'depth', 'top'],
-  floor: ['thickness', 'z_offset'], roof: ['overhang', 'thickness'], stair: ['width', 'rise', 'run'], room: [], decor: ['z'],
+  floor: ['thickness', 'z_offset'], roof: ['overhang', 'thickness'], stair: ['width', 'rise', 'run', 'inner_radius'], room: [], decor: ['z'],
+  road: ['width', 'sidewalk', 'curb_height', 'thickness', 'z_offset'], lamp: ['height', 'arm', 'pole_radius', 'range', 'z_offset'],
 }
 const PT_FIELDS = ['a', 'b', 'pos', 'start']
 
@@ -259,6 +275,7 @@ export function convertUnits(project, newUnit) {
     for (const f of PT_FIELDS) if (o[f]) o[f] = sp(o[f])
     if (o.polygon) o.polygon = o.polygon.map(sp)
     if (o.holes) o.holes = o.holes.map((h) => h.map(sp))
+    if (o.path) o.path = o.path.map(sp)
     if (e.type === 'decor') o.size = e.size.map(s)
     return o
   })
@@ -268,6 +285,7 @@ export function convertUnits(project, newUnit) {
     levels: project.levels.map((l) => ({ ...l, elevation: s(l.elevation), height: s(l.height) })),
     editor: { ...project.editor, grid_size: s(project.editor.grid_size) ?? null, snap_size: s(project.editor.snap_size) ?? null },
     elements,
+    ...(project.guides ? { guides: project.guides.map((g) => ({ ...g, origin: sp(g.origin), b: g.b ? sp(g.b) : g.b, spacing_x: s(g.spacing_x), spacing_y: s(g.spacing_y), length: s(g.length) })) } : {}),
   }
 }
 
@@ -353,6 +371,8 @@ export function moveHandle(elements, id, index, np) {
     }
   } else if (target.polygon) {
     out[id] = { ...target, polygon: target.polygon.map((p, i) => (i === index ? np : p)) }
+  } else if (target.path) {
+    out[id] = { ...target, path: target.path.map((p, i) => (i === index ? np : p)) }
   }
   return out
 }
@@ -361,6 +381,7 @@ export function handlesOf(e) {
   if (!e) return []
   if (e.type === 'wall' || e.type === 'beam') return [e.a, e.b]
   if (e.polygon) return e.polygon
+  if (e.path) return e.path
   return []
 }
 

@@ -24,7 +24,7 @@ from .collision import wall_boxes
 from .junctions import extensions, touching
 from .mesh import MeshData, mesh_issues
 
-GEOM_TYPES = ("wall", "door", "window", "opening", "column", "beam", "floor", "roof", "stair", "decor")
+GEOM_TYPES = ("wall", "door", "window", "opening", "column", "beam", "floor", "roof", "stair", "decor", "road", "lamp")
 MANIFEST = "manifest.json"
 
 
@@ -187,6 +187,12 @@ def build_geometry(p: Project, gdir: Path, detail: str = "medium", force: bool =
             for d in bld.decor:
                 if d.id in dirty:
                     emit(d.id, "decor", d.level_id, B.decor_mesh(d, detail))
+            for rd in bld.roads:
+                if rd.id in dirty:
+                    emit(rd.id, "road", rd.level_id, B.road_mesh(rd, detail))
+            for lp in bld.lamps:
+                if lp.id in dirty:
+                    emit(lp.id, "lamp", lp.level_id, B.lamp_mesh(lp, detail), {"light": B.lamp_light(lp)} if lp.light else None)
         except ValueError as exc:
             raise BuildError("Geometry generation failed", "geometry.build", str(exc),
                              "Fix the element reported above and rebuild") from exc

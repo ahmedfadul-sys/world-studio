@@ -335,6 +335,17 @@ def run(job: dict) -> dict:
         o["bim_id"], o["bim_type"], o["bim_level"] = pid, part["type"], part["level"]
         o["_slot_mats"] = json.dumps(ids)
         visuals.append((o, part, pid))
+        lt = part.get("light")
+        if lt:   # عمود إنارة: ضوء نقطي حقيقي (شمعة -> واط: W = cd * 4π / 683)
+            ld = bpy.data.lights.new(f"Light_{pid}", "POINT")
+            ld.energy = float(lt["intensity"]) * 4.0 * math.pi / 683.0
+            ld.color = tuple(int(lt["color"][i:i + 2], 16) / 255 for i in (1, 3, 5))
+            ld.use_custom_distance = True
+            ld.cutoff_distance = float(lt["range"])
+            lo = bpy.data.objects.new(uname(f"light_{part['name']}"), ld)
+            lo.location = tuple(lt["pos"])
+            lo.parent = level_node(part["level"])
+            vis_coll.objects.link(lo)
     tick("load")
     report["parts_loaded"] = len(visuals)
     if not visuals:
@@ -489,7 +500,7 @@ def run(job: dict) -> dict:
             path = out_dir / f"{stem}.{fmt}"
             kw = dict(filepath=str(path), export_format="GLB" if fmt == "glb" else "GLTF_SEPARATE",
                       use_selection=False, export_yup=yup, export_extras=True, export_cameras=False,
-                      export_lights=False, export_apply=False)
+                      export_lights=True, export_apply=False)
             props = bpy.ops.export_scene.gltf.get_rna_type().properties.keys()
             skipped = [k for k in kw if k not in props]
             if skipped:

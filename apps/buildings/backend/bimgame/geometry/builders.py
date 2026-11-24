@@ -13,7 +13,7 @@ from shapely.geometry import MultiPolygon, Polygon
 from shapely.geometry import box as sbox
 from shapely.geometry.polygon import orient
 
-from ..bim.model import RBeam, RColumn, RDecor, RFloor, ROpening, RRoof, RStair, RWall
+from ..bim.model import RBeam, RColumn, RDecor, RFloor, RLamp, ROpening, RRoad, RRoof, RStair, RWall
 from .mesh import MeshData, _mesh, _tri_ccw, box, cylinder, extrude
 
 DETAIL = {  # circle segments / arch segments per preset
@@ -358,8 +358,33 @@ def roof_mesh(r: RRoof, detail: str = "medium") -> Built:
 
 
 # stairs ----------------------------------------------------------------------
+def _spiral_stair(s: RStair, detail: str) -> Built:
+    """سلّم لولبي: كل درجة قطاع حلقي صلب من الأرض حتى ارتفاعها + عمود مركزي."""
+    n = max(1, s.steps)
+    r_in = max(0.0, s.inner_radius)
+    r_out = r_in + s.width
+    sgn = -1.0 if s.clockwise else 1.0
+    dth = math.radians(s.turn_deg) / n
+    a0 = math.radians(s.angle_deg)
+    k = max(1, DETAIL[detail]["seg"] // 8)      # عدد أقسام القوس لكل درجة
+    m = MeshData()
+    for i in range(n):
+        ang = [a0 + sgn * (i + j / k) * dth for j in range(k + 1)]
+        outer = [(r_out * math.cos(a), r_out * math.sin(a)) for a in ang]
+        inner = [(r_in * math.cos(a), r_in * math.sin(a)) for a in reversed(ang)] if r_in > 1e-6 else [(0.0, 0.0)]
+        poly = Polygon(outer + inner)
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        m.add(extrude(poly, 0.0, (i + 1) * s.rise))
+    if r_in > 0.02:
+        m.add(cylinder(0.0, 0.0, 0.0, r_in, n * s.rise + 1.0, DETAIL[detail]["seg"]))
+    return m.transformed(None, (s.start[0], s.start[1], s.z0)), [s.material]
+
+
 def stair_mesh(s: RStair, detail: str = "medium") -> Built:
     """One watertight solid: the step silhouette extruded across the stair width."""
+    if s.kind == "spiral":
+        return _spiral_stair(s, detail)
     pts = [(0.0, 0.0)]
     for i in range(s.steps):
         pts += [(i * s.run, (i + 1) * s.rise), ((i + 1) * s.run, (i + 1) * s.rise)]
@@ -368,3 +393,49 @@ def stair_mesh(s: RStair, detail: str = "medium") -> Built:
     ang = math.radians(s.angle_deg)
     R, t = _frame(s.start[0], s.start[1], math.cos(ang), math.sin(ang), s.z0)
     return m.transformed(R, t), [s.material]
+
+
+# roads / street lamps ---------------------------------------------------------
+def road_mesh(r: RRoad, detail: str = "medium") -> Built:
+    """الطريق (slot 0) + الرصيفان (slot 1) المرتفعان بمقدار `curb`؛ المسار متعدد الخطوط يُعرَّض بحواف قائمة."""
+    pts: list[tuple[float, float]] = []
+    for p in r.path:
+        if not pts or math.hypot(p[0] - pts[-1][0], p[1] - pts[-1][1]) > 1e-6:
+            pts.append((p[0], p[1]))
+    if len(pts) < 2:
+        raise ValueError(f"road has fewer than 2 distinct points ({r.id})")
+    line = shapely.LineString(pts)
+    kw = dict(cap_style="flat", join_style="mitre", mitre_limit=3.0)
+    body = line.buffer(r.width / 2, **kw)
+    if body.is_empty:
+        raise ValueError(f"road polygon is empty ({r.id})")
+    m = MeshData()
+    for poly in getattr(body, "geoms", [body]):
+        m.add(extrude(poly, r.z0, r.z0 + r.thickness))
+    if r.sidewalk > 1e-6:
+        walk = line.buffer(r.width / 2 + r.sidewalk, **kw).difference(body)
+        for poly in getattr(walk, "geoms", [walk]):
+            if isinstance(poly, Polygon) and poly.area > 1e-6:
+                m.add(extrude(poly, r.z0, r.z0 + r.thickness + r.curb, 1, 1, 1))
+    return m, [r.material, r.sidewalk_material]
+
+
+def lamp_light(l: RLamp) -> dict:
+    ang = math.radians(l.arm_deg)
+    return {"pos": [l.pos[0] + math.cos(ang) * l.arm, l.pos[1] + math.sin(ang) * l.arm, l.z0 + l.height - 0.15],
+            "color": l.color, "intensity": l.intensity, "range": l.range}
+
+
+def lamp_mesh(l: RLamp, detail: str = "medium") -> Built:
+    seg = DETAIL[detail]["seg"]
+    m = cylinder(l.pos[0], l.pos[1], l.z0, l.pole_radius * 1.8, 0.25, seg)            # قاعدة
+    m.add(cylinder(l.pos[0], l.pos[1], l.z0 + 0.25, l.pole_radius, l.height - 0.25, seg))
+    ang = math.radians(l.arm_deg)
+    hx, hy = l.pos[0], l.pos[1]
+    if l.arm > 1e-6:
+        mx, my = l.pos[0] + math.cos(ang) * l.arm / 2, l.pos[1] + math.sin(ang) * l.arm / 2
+        m.add(box(mx, my, l.z0 + l.height - 0.08, l.arm, l.pole_radius * 1.4, l.pole_radius * 1.4, l.arm_deg))
+        hx, hy = l.pos[0] + math.cos(ang) * l.arm, l.pos[1] + math.sin(ang) * l.arm
+    head = box(hx, hy, l.z0 + l.height - 0.22, 0.34, 0.2, 0.22, l.arm_deg, slot=1)
+    m.add(head)
+    return m, [l.material, "mat_lamp_head"]
