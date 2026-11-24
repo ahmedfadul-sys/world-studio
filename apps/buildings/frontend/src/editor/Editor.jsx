@@ -4,9 +4,9 @@ import { Icon, Toggle } from '../ui.jsx'
 import Canvas2D from './Canvas2D.jsx'
 import Inspector from './Inspector.jsx'
 import WallFace from './WallFace.jsx'
-import { ArrayDialog, DxfImport, VillaDialog, RuinDialog, PlazaDialog, UnderlayImport } from './PlanDialogs.jsx'
+import { ArrayDialog, DxfImport, VillaDialog, RuinDialog, PlazaDialog, TowerDialog, UnderlayImport } from './PlanDialogs.jsx'
 
-const TOOLS = ['select', 'move', 'hand', 'delete', null, 'wall', 'circle', 'arc', 'door', 'window', 'opening', 'column', 'beam', 'floor', 'roof', 'stair', 'room', 'roomwiz', 'decor']
+const TOOLS = ['select', 'move', 'hand', 'delete', null, 'wall', 'circle', 'arc', 'door', 'window', 'opening', 'column', 'beam', 'floor', 'roof', 'stair', 'room', 'roomwiz', 'decor', null, 'road', 'lamp', 'guide']
 
 export default function Editor() {
   const app = useApp()
@@ -63,6 +63,7 @@ export default function Editor() {
         {app.dialog === 'array' && <ArrayDialog onClose={() => app.set({ dialog: null })} />}
         {app.dialog === 'underlay' && <UnderlayImport onClose={() => app.set({ dialog: null })} />}
         {app.dialog === 'plaza' && <PlazaDialog onClose={() => app.set({ dialog: null })} />}
+        {app.dialog === 'tower' && <TowerDialog onClose={() => app.set({ dialog: null })} />}
         {app.dialog === 'ruin' && <RuinDialog onClose={() => app.set({ dialog: null })} />}
         {app.dialog === 'villa' && <VillaDialog onClose={() => app.set({ dialog: null })} />}
         {app.dialog === 'dxf' && <DxfImport onClose={() => app.set({ dialog: null })} />}

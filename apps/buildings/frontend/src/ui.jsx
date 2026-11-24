@@ -12,6 +12,7 @@ const ICONS = {
   roomwiz: 'M4 4h16v16H4zM12 8v8M8 12h8', opening: 'M5 20V8a7 7 0 0114 0v12M5 20h14', decor: 'M12 3l3 6 6 1-4.5 4.5L18 21l-6-3-6 3 1.5-6.5L3 10l6-1z',
   rect: 'M4 6h16v12H4z', triangle: 'M12 4l9 16H3z', star: 'M12 3l2.6 6 6.4.6-4.8 4.3 1.4 6.3L12 17l-5.6 3.2 1.4-6.3L3 9.6 9.4 9z', poly: 'M5 18l2-12 8-2 4 8-6 6z',
   undo: 'M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3', redo: 'M15 14l5-5-5-5M20 9H10a6 6 0 000 12h3',
+  road: 'M8 3L5 21M16 3l3 18M12 4v3M12 11v3M12 18v3', lamp: 'M12 21V9M8 21h8M12 9a5 5 0 015-5h1M18 4v3M16 7h4', guide: 'M3 8h18M3 16h18M8 3v18M16 3v18',
   fit: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
 }
 export function Icon({ name, size = 20 }) {

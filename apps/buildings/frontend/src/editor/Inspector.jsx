@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react'
 import { useApp } from '../store.jsx'
 import { api, formatError } from '../api.js'
 import { clampOpenings, deleteElements, dist, polygonArea, patchElement, applyModule, moduleFits, applySpecsToAll, POSITIONAL } from '../model.js'
-import { Card, ErrorBox, Field, NumField, Select, useModules } from '../ui.jsx'
+import { Card, ErrorBox, Field, NumField, Select, Toggle, useModules } from '../ui.jsx'
 import RoomWizard from './RoomWizard.jsx'
 import UnderlayPanel from './UnderlayPanel.jsx'
 import TemplatesPanel from './TemplatesPanel.jsx'
 import RoomsPanel from './RoomsPanel.jsx'
 import BalancePanel from './BalancePanel.jsx'
+import { GuidePanel, RoadLamps, RoadPanel } from './CityPanels.jsx'
 import { ROOM_TYPES, buildRoomParts, cloneElements, applyOverrides, fitStairSteps, rectInfo, resizeRect, stairFlights } from '../plan.js'
 
 const L = (key, label, extra = {}) => ({ kind: 'num', key, label, min: 0.0001, ...extra })
@@ -20,7 +21,9 @@ const SCHEMA = {
   beam: [L('width', 'f_width'), L('depth', 'f_depth'), { kind: 'num', key: 'top', label: 'f_top', min: 0.0001, nullable: true }, { kind: 'mat', key: 'material', label: 'f_material' }],
   floor: [{ kind: 'sel', key: 'kind', label: 'f_kind', options: ['floor', 'ceiling', 'balcony'], prefix: 'v_' }, L('thickness', 'f_thickness'), { kind: 'num', key: 'z_offset', label: 'f_z', min: -1e6 }, { kind: 'mat', key: 'material', label: 'f_material' }],
   roof: [{ kind: 'sel', key: 'kind', label: 'f_kind', options: ['flat', 'shed', 'gable', 'hip', 'cone', 'dome', 'barrel'], prefix: 'v_' }, { kind: 'num', key: 'pitch_deg', label: 'f_pitch', min: 0, max: 79.9 }, L('overhang', 'f_overhang', { min: 0 }), L('thickness', 'f_thickness'), { kind: 'sel', key: 'ridge_axis', label: 'f_ridge', options: ['x', 'y'] }, { kind: 'mat', key: 'material', label: 'f_material' }],
-  stair: [{ kind: 'num', key: 'steps', label: 'f_steps', min: 1, max: 200, step: 1 }, L('rise', 'f_rise'), L('run', 'f_run'), L('width', 'f_width'), { kind: 'num', key: 'angle_deg', label: 'f_angle', min: -360, max: 360 }, { kind: 'mat', key: 'material', label: 'f_material' }],
+  road: [{ kind: 'sel', key: 'surface', label: 'rd_surface', options: ['asphalt', 'dirt', 'stone', 'gravel', 'paving', 'concrete', 'sand'], prefix: 'sf_' }, L('width', 'rd_width'), L('sidewalk', 'rd_sidewalk', { min: 0 }), L('curb_height', 'rd_curb', { min: 0 }), L('thickness', 'f_thickness'), { kind: 'mat', key: 'material', label: 'f_material' }, { kind: 'mat', key: 'sidewalk_material', label: 'rd_sidewalk_mat' }],
+  lamp: [L('height', 'f_height'), L('arm', 'lp_arm', { min: 0 }), { kind: 'num', key: 'arm_deg', label: 'lp_arm_deg', min: -360, max: 360 }, L('pole_radius', 'lp_pole_r'), { kind: 'bool', key: 'light', label: 'lp_light' }, { kind: 'color', key: 'color', label: 'lp_color' }, { kind: 'num', key: 'intensity', label: 'lp_intensity', min: 0 }, L('range', 'lp_range'), { kind: 'mat', key: 'material', label: 'f_material' }],
+  stair: [{ kind: 'sel', key: 'kind', label: 'f_kind', options: ['straight', 'spiral'], prefix: 'v_' }, { kind: 'num', key: 'steps', label: 'f_steps', min: 1, max: 200, step: 1 }, L('rise', 'f_rise'), L('run', 'f_run'), L('width', 'f_width'), { kind: 'num', key: 'angle_deg', label: 'f_angle', min: -360, max: 360 }, { kind: 'num', key: 'inner_radius', label: 'sp_inner', min: 0 }, { kind: 'num', key: 'turn_deg', label: 'sp_turn', min: 1, max: 1440 }, { kind: 'bool', key: 'clockwise', label: 'tw_cw' }, { kind: 'mat', key: 'material', label: 'f_material' }],
   room: [{ kind: 'sel', key: 'room_type', label: 'f_room_type', options: [...ROOM_TYPES.map((r) => r.id), 'generic'], prefix: 'rt_' }],
   decor: [{ kind: 'sel', key: 'shape', label: 'f_shape', options: ['box', 'cylinder'] }, { kind: 'num', key: 'z', label: 'f_z', min: -1e6 }, { kind: 'num', key: 'rotation_deg', label: 'f_angle', min: -360, max: 360 }, { kind: 'mat', key: 'material', label: 'f_material' }],
 }
@@ -85,6 +88,7 @@ export default function Inspector() {
 
   return (
     <div className="inspector">
+      {app.tool === 'road' && <RoadPanel />}
       {app.tool === 'roomwiz' && <RoomWizard onPlaceCentre={() => window.__bimPlaceRoomCentre && window.__bimPlaceRoomCentre()} />}
       <Card title={t('insp_title')}>
         {!els.length && <p className="muted">{t('insp_none')}</p>}
@@ -116,6 +120,8 @@ export default function Inspector() {
                   </Field>
                 )
               } else if (f.kind === 'mat') node = <Select label={t(f.label)} value={v ?? null} onChange={(m) => patch(f.key, m)} options={matOpts} />
+              else if (f.kind === 'bool') node = <Toggle checked={v === undefined ? false : v} label={t(f.label)} onChange={(b) => patch(f.key, b)} />
+              else if (f.kind === 'color') node = <Field label={t(f.label)}><input type="color" value={v ?? '#ffd9a0'} onChange={(ev) => patch(f.key, ev.target.value)} /></Field>
               else if (f.kind === 'sel') node = <Select label={t(f.label)} value={v} onChange={(m) => patch(f.key, m)} options={f.options.map((o) => ({ value: o, label: f.prefix ? t(f.prefix + o) : o }))} />
               else node = <Field label={t(f.label)}><input type="text" value={v ?? ''} onChange={(e) => patch(f.key, e.target.value)} /></Field>
               if (els.length !== 1 || POSITIONAL.has(f.key)) return <div key={f.key}>{node}</div>
@@ -133,6 +139,7 @@ export default function Inspector() {
                 app.edit((p) => ({ ...p, elements: p.elements.map((e) => (set.has(e.id) ? (mod ? applyModule(e, mod, p.units.name) : { ...e, module: null }) : e)) }))
               }} options={[{ value: null, label: t('v_none') }, ...fitting.map((m) => ({ value: m.id, label: m.name }))]} />
             )}
+            {els.length === 1 && first.type === 'road' && <RoadLamps road={first} />}
             {els.length === 1 && first.type === 'wall' && (
               <button type="button" className="btn small primary" data-testid="open-wallface" onClick={() => app.set({ faceWall: first.id })}>{t('wf_open')}{first.features?.length ? ` (${first.features.length})` : ''}</button>
             )}
@@ -177,6 +184,7 @@ export default function Inspector() {
           <button type="button" className="btn small" data-testid="pt-underlay" onClick={() => app.set({ dialog: 'underlay' })}>{t('ul_import')}</button>
           <button type="button" className="btn small" data-testid="pt-villa" onClick={() => app.set({ dialog: 'villa' })}>{t('pt_villa')}</button>
           <button type="button" className="btn small" data-testid="pt-plaza" onClick={() => app.set({ dialog: 'plaza' })}>{t('pt_plaza')}</button>
+          <button type="button" className="btn small" data-testid="pt-tower" onClick={() => app.set({ dialog: 'tower' })}>{t('pt_tower')}</button>
           <button type="button" className="btn small" data-testid="pt-ruin" onClick={() => app.set({ dialog: 'ruin' })}>{t('pt_ruin')}</button>
           {project.elements.some((e) => e.props && e.props.debris) && <button type="button" className="btn small" data-testid="pt-cleardebris" onClick={() => app.edit((p) => ({ ...p, elements: p.elements.filter((e) => !(e.props && e.props.debris)) }))}>{t('pt_cleardebris')}</button>}
           <button type="button" className="btn small" data-testid="pt-dxf" onClick={() => app.set({ dialog: 'dxf' })}>{t('pt_dxf')}</button>
@@ -189,6 +197,7 @@ export default function Inspector() {
           </>
         )}
       </Card>
+      <GuidePanel />
       <BalancePanel />
           <RoomsPanel />
       <TemplatesPanel />

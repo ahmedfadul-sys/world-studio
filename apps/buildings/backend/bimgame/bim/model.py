@@ -108,6 +108,41 @@ class RStair:
     rise: float
     run: float
     material: str | None
+    kind: str = "straight"
+    inner_radius: float = 0.3
+    turn_deg: float = 360.0
+    clockwise: bool = False
+
+
+@dataclass
+class RRoad:
+    id: str
+    level_id: str
+    path: list[P2]
+    z0: float
+    width: float
+    sidewalk: float
+    curb: float
+    thickness: float
+    material: str | None
+    sidewalk_material: str | None
+
+
+@dataclass
+class RLamp:
+    id: str
+    level_id: str
+    pos: P2
+    z0: float
+    height: float
+    arm: float
+    arm_deg: float
+    pole_radius: float
+    light: bool
+    color: str
+    intensity: float
+    range: float
+    material: str | None
 
 
 @dataclass
@@ -131,8 +166,10 @@ class RBuilding:
     roofs: list[RRoof] = field(default_factory=list)
     stairs: list[RStair] = field(default_factory=list)
     decor: list[RDecor] = field(default_factory=list)
+    roads: list[RRoad] = field(default_factory=list)
+    lamps: list[RLamp] = field(default_factory=list)
     debim_version: str = ""
     resolved_via_debim: int = 0  # number of elements whose placement debim resolved
 
     def count(self) -> int:
-        return sum(len(x) for x in (self.walls, self.columns, self.beams, self.floors, self.roofs, self.stairs, self.decor))
+        return sum(len(x) for x in (self.walls, self.columns, self.beams, self.floors, self.roofs, self.stairs, self.decor, self.roads, self.lamps))

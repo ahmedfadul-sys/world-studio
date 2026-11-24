@@ -14,7 +14,7 @@ from ..blender.runner import run_blender
 from ..config import Settings
 from ..geometry.cache import build_geometry, load_manifest
 from ..geometry.validate import validate_project
-from ..schema import BuildRecord, ExportSettings, MaterialLab, Project, SceneOptions
+from ..schema import BuildRecord, ExportSettings, MaterialLab, Project, SceneOptions, with_surface_materials
 from ..utils.errors import AppError, BuildError
 from ..utils.memprof import measure
 from .godot_scene import write_scene
@@ -118,7 +118,7 @@ class BuildService:
             use_tex = bool(params.get("textures", kind != "preview"))
             job = {
                 "project_id": p.id, "project_name": _slug(p.name), "steps": KIND_STEPS[kind], "settings": es.model_dump(),
-                "materials": [m.model_dump() for m in p.materials], "levels": [lv.model_dump() for lv in p.levels],
+                "materials": [m.model_dump() for m in with_surface_materials(p.materials)], "levels": [lv.model_dump() for lv in p.levels],
                 "geometry_dir": str(gdir), "parts": parts, "textures_dir": str(pdir / "textures"), "use_textures": use_tex,
                 "output_dir": str(pdir / out_rel), "output_stem": _slug(p.name) + ("" if kind == "preview" else f"_{kind}"),
             }

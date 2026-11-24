@@ -17,9 +17,9 @@ from __future__ import annotations
 import logging
 from typing import Iterable
 
-from ..schema import OPENING_TYPES, Project
+from ..schema import OPENING_TYPES, Project, surface_material_id
 from ..utils.errors import AppError, DependencyError
-from .model import (RBeam, RBuilding, RColumn, RDecor, RFeature, RFloor, ROpening, RRoof,
+from .model import (RBeam, RBuilding, RColumn, RDecor, RFeature, RFloor, RLamp, ROpening, RRoad, RRoof,
                     RStair, RWall)
 from .modules import apply_modules
 
@@ -244,7 +244,14 @@ def _to_building(resolved, chosen, proj: Project, lvl, k: float, ver: str) -> RB
                 overhang=e.overhang * k, thickness=e.thickness * k, ridge_axis=e.ridge_axis, material=e.material))
         elif e.type == "stair":
             out.stairs.append(RStair(e.id, e.level_id, _sc(e.start, k), e.angle_deg, z0 + e.z_offset * k, e.width * k,
-                                     e.steps, e.rise * k, e.run * k, e.material))
+                                     e.steps, e.rise * k, e.run * k, e.material, e.kind, e.inner_radius * k, e.turn_deg, e.clockwise))
+        elif e.type == "road":   # الطرق والأعمدة لا تمر عبر debim (لا مقابل لها في IFC المستعمل هنا)
+            out.roads.append(RRoad(e.id, e.level_id, [_sc(p, k) for p in e.path], z0 + e.z_offset * k, e.width * k, e.sidewalk * k,
+                                   e.curb_height * k, e.thickness * k, e.material or surface_material_id(e.surface),
+                                   e.sidewalk_material or surface_material_id("sidewalk")))
+        elif e.type == "lamp":
+            out.lamps.append(RLamp(e.id, e.level_id, _sc(e.pos, k), z0 + e.z_offset * k, e.height * k, e.arm * k, e.arm_deg,
+                                   e.pole_radius * k, e.light, e.color, e.intensity, e.range * k, e.material or "mat_lamp_pole"))
         elif e.type == "decor":
             out.decor.append(RDecor(e.id, e.level_id, _sc(e.pos, k), z0 + e.z * k,
                                     tuple(s * k for s in e.size), e.shape, e.rotation_deg, e.material))  # type: ignore[arg-type]
