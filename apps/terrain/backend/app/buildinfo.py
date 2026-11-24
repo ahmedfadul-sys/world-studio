@@ -14,6 +14,7 @@ from .roads import build as roads_build
 from .kits import plan as kit_plan, to_csv as kit_csv
 from .routing import lots_for_site
 from .gameplay import simulate
+from . import texlib
 
 EN_LABELS = {
     "mountain": "Mountain", "hill": "Hill", "plateau": "Plateau", "mesa": "Mesa", "volcano": "Volcano", "island": "Island", "atoll": "Atoll",
@@ -282,6 +283,17 @@ def make_extras(project, hm: dict) -> dict:
             sc_info.append(rec)
     pt, _ = paint(project, eng, Z, xs, ys, dens, dv)
     imgs, minfo = pack_splats(project, pt)
+    tex_records = []
+    for mi in minfo:                                                                   # خامات CC0 المنزَّلة: تُنسخ إلى التصدير ويصبح مسارها نسبياً بجوار build.json
+        if texlib.is_managed(mi.get("pack")):
+            pk = texlib.read_pack(mi["pack"])
+            rel = f"textures/{pk['record']['provider']}_{pk['record']['id']}"
+            for fname, data in pk["files"].items():
+                files[f"{rel}/{fname}"] = data
+            tex_records.append(pk["record"])
+            mi["pack"] = rel
+    if tex_records:
+        files["textures/CREDITS.txt"] = texlib.credits_text(tex_records).encode("utf-8")
     for i, img in enumerate(imgs):
         files[f"masks/splat_{i}.png"] = cv2.imencode(".png", img)[1].tobytes()          # RGBA: 4 مواد لكل صورة
     files["masks/materials_preview.png"] = cv2.imencode(".png", colors_rgb(project, pt)[:, :, ::-1])[1].tobytes()

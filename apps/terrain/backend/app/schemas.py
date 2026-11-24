@@ -424,6 +424,8 @@ class ExportSettings(BaseModel):
     mode: Literal["auto", "fixed"] = "auto"
     zmin_m: float = 0.0
     zmax_m: float = 1000.0
+    glb_resolution: Literal[257, 513, 1025, 2049] = 1025      # تصدير GLB: عدد رؤوس الضلع الأطول
+    glb_texture_px: Literal[1024, 2048, 4096] = 2048          # تصدير GLB: دقة الخامة المخبوزة (الضلع الأطول)
 
 
 class Project(BaseModel):

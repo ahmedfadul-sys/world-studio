@@ -1,8 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import MapCanvas, { type Mode, type Overlay, type Sel } from "./MapCanvas";
 import { analyze, parseTelemetry, syntheticSessions, type Session, type TStats } from "./telemetry";
 import Chart from "./Chart";
-import { download, exportZip, fetchPreview, fetchProfile, jobDownload, jobStatus, lotsApi, routeApi, simulateApi, startTiles, suggestSites, viewshedApi } from "./api";
+import { download, exportCapabilities, exportZip, fetchPreview, fetchProfile, jobDownload, jobStatus, lotsApi, routeApi, simulateApi, startTiles, startWorldExport, suggestSites, texEnsure, viewshedApi, worldJobStatus, type Capabilities } from "./api";
+const World3D = lazy(() => import("./World3D"));      // three.js يُحمَّل عند فتح المعاينة فقط
+import TexBrowser from "./TexBrowser";
 import { sampleZ } from "./render";
 import {
   BIOME_PRESETS, LINE_META, POINT_META, POI_META, SITE_META, ZONE_META, conflict, defaultProject, newBiome, newLine, newPoi, newPoint, newSite, newZone, polyArea, siteExt, sliceAndDice,
@@ -90,6 +92,9 @@ export default function App() {
   const [autoAreas, setAutoAreas] = useState<number[]>([]);
   const [job, setJob] = useState<{ id: string; done: number; total: number; state: string; error: string | null } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [show3d, setShow3d] = useState(false);
+  const [caps, setCaps] = useState<Capabilities | null>(null);
+  const [wjob, setWjob] = useState<{ id: string; fmt: "glb" | "blend"; state: string; done: number; stage: string | null; error: string | null } | null>(null);
 
   const set = (fn: (p: Project) => void) => setProject((p) => { const c = structuredClone(p); fn(c); return c; });
   const uid = (prefix: string, used: string[]) => { let i = 1; while (used.includes(`${prefix}-${i}`)) i++; return `${prefix}-${i}`; };
@@ -145,6 +150,21 @@ export default function App() {
     }, 800);
     return () => clearInterval(h);
   }, [job?.id, job?.state]); // eslint-disable-line
+
+  useEffect(() => { exportCapabilities().then(setCaps).catch(() => undefined); }, []);
+  useEffect(() => { // متابعة مهمة تصدير GLB/.blend
+    if (!wjob || wjob.state !== "running") return;
+    const h = setInterval(async () => {
+      const s = await worldJobStatus(wjob.id);
+      setWjob((j) => (j ? { ...j, ...s } : j));
+      if (s.state === "done") { download(await jobDownload(wjob.id), `world.${wjob.fmt}`); }
+    }, 700);
+    return () => clearInterval(h);
+  }, [wjob?.id, wjob?.state]); // eslint-disable-line
+  const doWorld = async (fmt: "glb" | "blend") => {
+    setErr(null);
+    try { const r = await startWorldExport(project, fmt); setWjob({ id: r.job_id, fmt, state: "running", done: 0, stage: "بدء", error: null }); } catch (e) { setErr(String((e as Error).message)); }
+  };
 
   const w = project.world;
   const ground = (x: number, y: number) => (preview ? sampleZ(preview, x, y, w.size_x_m, w.size_y_m) : project.base.elevation_m);
@@ -301,7 +321,10 @@ export default function App() {
       p.surface = { ...defaultSurface(), ...(p.surface ?? {}) };
       p.materials = (p.materials ?? []).map((m) => ({ roughness: null, height: null, pack: null, roughness_value: 0.9, detail_amp_m: null, detail_kind: null, ...(m as Partial<Material>) } as Material));   // ملفات قديمة بلا PBR
       p.atmosphere = { ...defaultAtmosphere(), ...(p.atmosphere ?? {}) };          // الملفات القديمة بلا جو
+      p.export = { ...defaultProject().export, ...(p.export ?? {}) };              // ملفات قديمة بلا إعدادات GLB
       setProject(p); setSel(null);
+      const refs = p.materials.map((m) => m.pack).filter((x): x is string => !!x && x.startsWith("cc0:"));
+      if (refs.length) texEnsure(refs).then((rs) => { const bad = rs.filter((r) => !r.ok); if (bad.length) setNotice(`تعذّر تنزيل ${bad.length} خامة CC0 (ستظهر بألوانها): ${bad[0].error ?? ""}`); }).catch(() => undefined);
     } catch (e) { setErr(String((e as Error).message)); }
   };
 
@@ -644,6 +667,7 @@ export default function App() {
           {selMat && (
             <div className="editor">
               <input className="title" value={selMat.name} onChange={(e) => setMat(selMat.id, { name: e.target.value })} />
+              <TexBrowser current={selMat.pack} onPick={(r) => setMat(selMat.id, { pack: r.ref, albedo: null, normal: null, roughness: null, height: null })} />
               <label className="field"><span>مجلد الحزمة</span><input dir="ltr" placeholder="textures/rock_01" value={selMat.pack ?? ""} onChange={(e) => setMat(selMat.id, { pack: e.target.value || null })} /></label>
               <p className="hint">ضع مجلد الحزمة (من ambientCG أو Poly Haven) بجوار build.json: تُكتشف الخرائط تلقائياً من أسماء الملفات (Color/diff، Roughness/rough، Displacement/disp، NormalGL/nor_gl). المسارات أدناه اختيارية وتتغلب على الحزمة.</p>
               <label className="field"><span>Albedo</span><input dir="ltr" placeholder="تلقائي من الحزمة" value={selMat.albedo ?? ""} onChange={(e) => setMat(selMat.id, { albedo: e.target.value || null })} /></label>
@@ -882,6 +906,25 @@ export default function App() {
         </section>
 
         <section data-tab="export">
+          <h2>تصدير العالم</h2>
+          <p className="hint">ملف واحد جاهز للاستعمال: <b>GLB</b> (يفتح في Blender وGodot وUnity) أو <b>.blend</b> (المشهد الكامل بمواده وفصوله وجوّه). الصور والأكواد القديمة محفوظة أسفل للتحسين.</p>
+          <button className="primary" disabled={hasErrors} onClick={() => setShow3d(true)}>{hasErrors ? "أصلح الأخطاء أولاً" : "معاينة العالم ثلاثياً"}</button>
+          <Field label="دقة شبكة GLB">
+            <select value={project.export.glb_resolution} onChange={(e) => set((p) => { p.export.glb_resolution = Number(e.target.value) as Project["export"]["glb_resolution"]; })}>
+              {[257, 513, 1025, 2049].map((r) => <option key={r} value={r}>{r} رأس (≈ {(Math.max(w.size_x_m, w.size_y_m) / (r - 1)).toFixed(1)} م)</option>)}</select></Field>
+          <Field label="دقة الخامة المخبوزة">
+            <select value={project.export.glb_texture_px} onChange={(e) => set((p) => { p.export.glb_texture_px = Number(e.target.value) as Project["export"]["glb_texture_px"]; })}>
+              {[1024, 2048, 4096].map((r) => <option key={r} value={r}>{r} بكسل (≈ {(Math.max(w.size_x_m, w.size_y_m) / r).toFixed(1)} م/بكسل)</option>)}</select></Field>
+          <div className="expfmt">
+            <button className="primary" disabled={hasErrors || wjob?.state === "running"} onClick={() => doWorld("glb")}>تصدير GLB</button>
+            <button className="primary" disabled={hasErrors || wjob?.state === "running" || caps?.blend.available === false} onClick={() => doWorld("blend")}
+              title={caps?.blend.available === false ? caps.blend.reason : "Blender يبني المشهد الكامل ويحفظه"}>تصدير .blend</button></div>
+          {caps?.blend.available === false && <p className="hint">تصدير .blend غير متاح: {caps.blend.reason} <button onClick={() => exportCapabilities(true).then(setCaps)}>أعد الفحص</button></p>}
+          {wjob?.state === "running" && <><p className="hint">{wjob.fmt === "glb" ? "GLB" : ".blend"}: {wjob.stage ?? ""} {wjob.done}%</p><progress value={wjob.done} max={100} style={{ width: "100%" }} /></>}
+          {wjob?.state === "error" && <div className="msg error" style={{ whiteSpace: "pre-wrap" }}>{wjob.error}</div>}
+          {wjob?.state === "done" && <p className="hint">اكتمل التصدير وتم التنزيل.</p>}
+          <p className="hint">الخامة في GLB «مخبوزة» من مزج خامات المواد (وكل ما يمرّ على Poly Haven/ambientCG يُنسب في extras)؛ للخامات الحقيقية بإسقاط ثلاثي المحاور استعمل .blend.</p>
+          <details className="legacy"><summary>التصدير المتقدّم: الصور والأكواد (محفوظ للتحسين)</summary>
           <h2>التصدير</h2>
           <Field label="نطاق الارتفاع">
             <select value={project.export.mode} onChange={(e) => set((p) => { p.export.mode = e.target.value as "auto" | "fixed"; })}>
@@ -913,6 +956,7 @@ export default function App() {
             <p className="hint">يُصدَّر مجلد واحد: <b>terrain/</b> (المربعات + build.json) و<b>sites/</b> (ملف GLB لكل منشأة رسمتها في BIM Builder) و<b>sites.json</b> و<b>sites_placement.tscn</b> لـ Godot. المنشآت المرتبطة: {project.sites.filter((s) => s.bim_project).length} من {project.sites.length}.</p>
             <button className="primary" disabled={hasErrors} onClick={() => exportWorld("tiles")}>{hasErrors ? "أصلح الأخطاء أولاً" : "تصدير العالم + المنشآت (مربعات)"}</button>
             <button disabled={hasErrors} onClick={() => exportWorld("single")}>نفس التصدير بصورة واحدة</button></>}
+          </details>
           <div className="row"><button onClick={save}>حفظ المشروع</button><button onClick={() => fileRef.current?.click()}>فتح مشروع</button>
             <input ref={fileRef} type="file" accept=".json" hidden onChange={(e) => e.target.files?.[0] && load(e.target.files[0])} /></div>
         </section>
@@ -929,6 +973,7 @@ export default function App() {
         </div>
         <div className="bar">
           <label>العرض <select value={viewMat ? "mat" : "h"} onChange={(e) => setViewMat(e.target.value === "mat")}><option value="h">ارتفاعات</option><option value="mat">مواد</option></select></label>
+          <button onClick={() => setShow3d(true)} disabled={hasErrors} title="معاينة العالم ثلاثياً (نفس ملف GLB المُصدَّر)">معاينة 3D</button>
           <label><input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} /> الشبكة</label>
           <label>فاصل الكنتور (م) <span className="mini"><Num value={interval} min={0} onChange={setIntervalM} /></span></label>
           {preview && <span className="hint">النطاق {preview.zmin.toFixed(1)} → {preview.zmax.toFixed(1)} م</span>}
@@ -951,6 +996,7 @@ export default function App() {
         </div>
         </div>
       </main>
+      {show3d && <Suspense fallback={<div className="modal3d"><div className="m3d-note">جارٍ تحميل المعاينة…</div></div>}><World3D project={project} onClose={() => setShow3d(false)} /></Suspense>}
     </div>
   );
 }

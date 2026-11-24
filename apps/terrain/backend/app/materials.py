@@ -7,6 +7,7 @@ import numpy as np
 from .noise import fbm
 from .derived import derive
 from .terrain import (S, RELIEF, site_sd, nearest_grid, poly_weight_grid)
+from . import texlib
 
 BUILTIN = {"grass": "#5c8a3c", "forest_floor": "#3d5a2a", "rock": "#7b7468", "snow": "#f2f5f7", "sand": "#d8c690",
            "mud": "#6b5338", "dirt": "#8b7355", "pavement": "#8a8a8a", "farmland": "#b09a4a", "gravel": "#9a9488"}
@@ -16,7 +17,7 @@ def library(project) -> Dict[str, dict]:
     lib = {k: dict(id=k, name=k, color=v, albedo=None, normal=None, roughness=None, height=None, pack=None, roughness_value=0.9, tile_m=10.0, detail_amp_m=None, detail_kind=None) for k, v in BUILTIN.items()}
     for m in project.materials:
         lib[m.id] = dict(id=m.id, name=m.name or m.id, color=m.color, albedo=m.albedo, normal=m.normal, roughness=m.roughness, height=m.height,
-                         pack=m.pack, roughness_value=m.roughness_value, tile_m=m.tile_m, detail_amp_m=m.detail_amp_m, detail_kind=m.detail_kind)
+                         pack=texlib.resolve_pack(m.pack), roughness_value=m.roughness_value, tile_m=m.tile_m, detail_amp_m=m.detail_amp_m, detail_kind=m.detail_kind)
     return lib
 
 

@@ -110,7 +110,7 @@ export interface Project {
   world: { size_x_m: number; size_y_m: number; cell_size_m: number; chunk_size_m: number; seed: number; sea_level_m: number };
   base: { elevation_m: number; noise_amplitude_m: number; noise_scale_m: number; octaves: number; noise_mode: "off" | "amplitude" | "range"; noise_min_m: number; noise_max_m: number; noise_bias: number; cell_blend: number; cell_detail: number };
   biomes: Biome[]; cells: CellSpec[]; points: PointFeature[]; lines: LineFeature[]; sites: Site[]; zones: Zone[]; pois: Poi[]; player: PlayerModel; materials: Material[]; paint: PaintRules; erosion: Erosion; kit: Kit; roads: Roads; water: Water; detail: Detail; scatter: Scatter; derived: Derived; surface: Surface; atmosphere: Atmosphere;
-  export: { resolution: 513 | 1025 | 2049 | 4097; tile_px: 513 | 1025 | 2049; mask_px: 513 | 1025 | 2049; mode: "auto" | "fixed"; zmin_m: number; zmax_m: number };
+  export: { resolution: 513 | 1025 | 2049 | 4097; tile_px: 513 | 1025 | 2049; mask_px: 513 | 1025 | 2049; mode: "auto" | "fixed"; zmin_m: number; zmax_m: number; glb_resolution: 257 | 513 | 1025 | 2049; glb_texture_px: 1024 | 2048 | 4096 };
 }
 export interface LinearInfo { id: string; kind: LineKind; length_m: number; s: number[]; ground: number[]; design: number[] | null; x: number[]; y: number[] }
 export interface Preview { color?: Uint8Array; nx: number; ny: number; zmin: number; zmax: number; u16: Uint16Array; errors: string[]; warnings: string[]; linear: LinearInfo[] }
@@ -262,7 +262,7 @@ export const defaultProject = (): Project => ({
   derived: defaultDerived(),
   surface: defaultSurface(),
   atmosphere: defaultAtmosphere(),
-  export: { resolution: 1025, tile_px: 1025, mask_px: 1025, mode: "auto", zmin_m: 0, zmax_m: 1000 },
+  export: { resolution: 1025, tile_px: 1025, mask_px: 1025, mode: "auto", zmin_m: 0, zmax_m: 1000, glb_resolution: 1025, glb_texture_px: 2048 },
 });
 
 export const SITE_META: Record<SiteKind, { label: string; icon: string; rect: boolean; w: number; l: number; blend: number; strength?: number; offset?: number }> = {
