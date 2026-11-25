@@ -21,7 +21,7 @@ export default function BalancePanel() {
   const spread = lens.length > 1 ? Math.max(...lens) - Math.min(...lens) : 0
 
   return (
-    <Card title={t('bal_title')}>
+    <Card title={t('bal_title')} fold="balance">
       <div className="small" data-testid="bal-lens">
         {lens.map((l, i) => <span key={i} className="chip">{fmtLen(l, unit)}</span>)}
         {lens.length > 1 && <p className="muted">{t('bal_total')}: <b>{fmtLen(total, unit)}</b> · {t('bal_spread')}: {fmtLen(spread, unit)}</p>}

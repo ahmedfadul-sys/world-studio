@@ -3,10 +3,18 @@ import { useApp } from '../store.jsx'
 import { Icon, Toggle } from '../ui.jsx'
 import Canvas2D from './Canvas2D.jsx'
 import Inspector from './Inspector.jsx'
+import { RoadPanel } from './CityPanels.jsx'
 import WallFace from './WallFace.jsx'
 import { ArrayDialog, DxfImport, VillaDialog, RuinDialog, PlazaDialog, TowerDialog, UnderlayImport } from './PlanDialogs.jsx'
 
-const TOOLS = ['select', 'move', 'hand', 'delete', null, 'wall', 'circle', 'arc', 'door', 'window', 'opening', 'column', 'beam', 'floor', 'roof', 'stair', 'room', 'roomwiz', 'decor', null, 'road', 'lamp', 'guide']
+// أدوات المحرر مجمّعة: (مفتاح العنوان، الأدوات)
+const TOOL_GROUPS = [
+  ['tg_select', ['select', 'move', 'hand', 'delete']],
+  ['tg_draw', ['wall', 'circle', 'arc']],
+  ['tg_open', ['door', 'window', 'opening']],
+  ['tg_struct', ['column', 'beam', 'floor', 'roof', 'stair', 'room', 'roomwiz', 'decor']],
+  ['tg_city', ['road', 'lamp', 'guide']],
+]
 
 export default function Editor() {
   const app = useApp()
@@ -43,18 +51,26 @@ export default function Editor() {
       </div>
       <div className="ed-body">
         <div className="toolbar" role="toolbar" aria-label="tools">
-          {TOOLS.map((k, i) => k === null ? <hr key={i} /> : (
-            <button key={k} type="button" className={`tool ${tool === k ? 'on' : ''}`} onClick={() => app.set({ tool: k })} title={t('tool_' + k)} aria-label={t('tool_' + k)} aria-pressed={tool === k} data-tool={k}>
-              <Icon name={k} />
-            </button>
+          {TOOL_GROUPS.map(([g, list]) => (
+            <div className="tgroup" key={g} role="group" aria-label={t(g)}>
+              <h6>{t(g)}</h6>
+              <div className="tgrid">
+                {list.map((k) => (
+                  <button key={k} type="button" className={`tool ${tool === k ? 'on' : ''}`} onClick={() => app.set({ tool: k })} title={t('tool_' + k)} aria-label={t('tool_' + k)} aria-pressed={tool === k} data-tool={k}>
+                    <Icon name={k} />
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
         <div className="ed-canvas">
           {['floor', 'roof', 'room'].includes(tool) && (
-            <div className="shape-bar" role="group" aria-label={t('shape')}>
+            <div className="shape-bar opts" role="group" aria-label={t('shape')}>
               {['poly', 'rect', 'circle'].map((k) => <button key={k} type="button" className={`btn small ${(app.shape || 'poly') === k ? 'primary' : ''}`} aria-pressed={(app.shape || 'poly') === k} data-shape={k} onClick={() => app.set({ shape: k })}>{t('shape_' + k)}</button>)}
             </div>
           )}
+          {tool === 'road' && <RoadPanel />}
           <Canvas2D showGhost={ghost} onNotice={flash} />
           {notice && <div className="notice" role="status">{notice}</div>}
         </div>

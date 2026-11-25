@@ -8,7 +8,7 @@ import UnderlayPanel from './UnderlayPanel.jsx'
 import TemplatesPanel from './TemplatesPanel.jsx'
 import RoomsPanel from './RoomsPanel.jsx'
 import BalancePanel from './BalancePanel.jsx'
-import { GuidePanel, RoadLamps, RoadPanel } from './CityPanels.jsx'
+import { GuidePanel, RoadLamps } from './CityPanels.jsx'
 import { ROOM_TYPES, buildRoomParts, cloneElements, applyOverrides, fitStairSteps, rectInfo, resizeRect, stairFlights } from '../plan.js'
 
 const L = (key, label, extra = {}) => ({ kind: 'num', key, label, min: 0.0001, ...extra })
@@ -88,7 +88,6 @@ export default function Inspector() {
 
   return (
     <div className="inspector">
-      {app.tool === 'road' && <RoadPanel />}
       {app.tool === 'roomwiz' && <RoomWizard onPlaceCentre={() => window.__bimPlaceRoomCentre && window.__bimPlaceRoomCentre()} />}
       <Card title={t('insp_title')}>
         {!els.length && <p className="muted">{t('insp_none')}</p>}
@@ -178,7 +177,7 @@ export default function Inspector() {
           </>
         )}
       </Card>
-      <Card title={t('pt_title')}>
+      <Card title={t('pt_title')} fold="tools" defaultOpen>
         <div className="plan-tools">
           <button type="button" className="btn small" data-testid="pt-wizard" onClick={() => app.set({ tool: 'roomwiz' })}>{t('pt_wizard')}</button>
           <button type="button" className="btn small" data-testid="pt-underlay" onClick={() => app.set({ dialog: 'underlay' })}>{t('ul_import')}</button>
@@ -202,7 +201,7 @@ export default function Inspector() {
           <RoomsPanel />
       <TemplatesPanel />
       <UnderlayPanel />
-      <Card title={t('issues')} actions={<button type="button" className="btn small" onClick={validate}>{t('validate')}</button>}>
+      <Card title={t('issues')} fold="issues" badge={issues ? issues.length : undefined} defaultOpen={false} actions={<button type="button" className="btn small" onClick={validate}>{t('validate')}</button>}>
         <ErrorBox error={err} />
         {issues && !issues.length && <p className="ok">{t('validate_ok')}</p>}
         {issues && issues.map((i, k) => <button key={k} type="button" className={`issue ${i.level}`} onClick={() => jump(i.element_id)}><b>{i.element_id}</b> {i.message}</button>)}
