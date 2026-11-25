@@ -622,7 +622,7 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
   if (project.editor.show_dimensions) {
     for (const w of walls) {
       const L = dist(w.a, w.b), s0 = toS(w.a), s1 = toS(w.b)
-      if (L * view.scale < 70 || (ov && ov[w.id] && drag.current && drag.current.kind === 'handle')) continue
+      if (L * view.scale < 95 || (ov && ov[w.id] && drag.current && drag.current.kind === 'handle')) continue
       const m = [(s0[0] + s1[0]) / 2, (s0[1] + s1[1]) / 2]
       const nx = -(s1[1] - s0[1]), ny = s1[0] - s0[0], nl = Math.hypot(nx, ny) || 1
       const off = (w.thickness * view.scale) / 2 + 12

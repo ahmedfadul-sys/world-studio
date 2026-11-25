@@ -5,7 +5,7 @@ import { guideLines, makeGuide } from '../guides.js'
 import { ensureRoadMaterials, lampsAlongRoad, ROAD_PRESETS, SURFACES } from '../roads.js'
 import { useState } from 'react'
 
-const SURF_COLOR = { asphalt: '#3a3b3e', dirt: '#8a6a44', stone: '#8f8a7d', gravel: '#9a9488', paving: '#a9998a', concrete: '#9b9b9b', sand: '#d8c690' }
+export const SURF_COLOR = { asphalt: '#3a3b3e', dirt: '#8a6a44', stone: '#8f8a7d', gravel: '#9a9488', paving: '#a9998a', concrete: '#9b9b9b', sand: '#d8c690' }
 
 /** Options bar of the road tool (top of the canvas): surface swatches, width, sidewalk. Picking a surface loads its usual widths. */
 export function RoadPanel() {

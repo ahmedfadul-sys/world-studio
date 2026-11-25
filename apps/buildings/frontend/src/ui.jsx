@@ -31,7 +31,7 @@ function useFold(key, dflt) {
   return [open, set]
 }
 
-export function Card({ title, children, actions, className = '', fold, defaultOpen = false, badge }) {
+export function Card({ title, children, actions, className = '', fold, defaultOpen = false, badge, sub }) {
   const [open, setOpen] = useFold(fold || '_', defaultOpen)
   if (!fold) {
     return (
@@ -45,7 +45,7 @@ export function Card({ title, children, actions, className = '', fold, defaultOp
     <section className={`card fold ${open ? 'open' : ''} ${className}`}>
       <header className="card-h">
         <button type="button" className="fold-btn" aria-expanded={open} onClick={() => setOpen(!open)}>
-          <h3>{title}</h3>
+          <h3>{title}</h3>{sub && <small className="card-sub">{sub}</small>}
           {badge !== undefined && badge !== null && <span className="badge">{badge}</span>}
           <svg className="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
         </button>

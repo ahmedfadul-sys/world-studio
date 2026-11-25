@@ -40,8 +40,8 @@ export default function Editor() {
           <button type="button" className="tab" onClick={addLevel} aria-label={t('bld_add_level')} title={t('bld_add_level')}>＋</button>
         </div>
         <div className="row wrap">
-          <button type="button" className="icon-btn" onClick={app.undo} title={`${t('undo')} (Ctrl+Z)`} aria-label={t('undo')}><Icon name="undo" /></button>
-          <button type="button" className="icon-btn" onClick={app.redo} title={`${t('redo')} (Ctrl+Y)`} aria-label={t('redo')}><Icon name="redo" /></button>
+          <button type="button" className="icon-btn" onClick={app.undo} title={`${t('undo')} (Ctrl+Z)`} aria-label={t('undo')}><Icon name="undo" /><span>{t('undo')}</span></button>
+          <button type="button" className="icon-btn" onClick={app.redo} title={`${t('redo')} (Ctrl+Y)`} aria-label={t('redo')}><Icon name="redo" /><span>{t('redo')}</span></button>
           <Toggle checked={ed.snap_enabled} label={t('snap')} onChange={(v) => app.edit((p) => ({ ...p, editor: { ...p.editor, snap_enabled: v } }))} />
           <Toggle checked={ed.show_dimensions} label={t('dims')} onChange={(v) => app.edit((p) => ({ ...p, editor: { ...p.editor, show_dimensions: v } }))} />
           <Toggle checked={ghost} label={t('ghost')} onChange={setGhost} />

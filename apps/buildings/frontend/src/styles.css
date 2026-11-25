@@ -216,3 +216,29 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
   .ed-side { width: auto; }
   .opts { inset-block-start: 8px; }
 }
+
+/* ══ مطابقة التصميم المرجعي ══ */
+.brand b::before { content:""; display:inline-block; width:22px; height:22px; margin-inline-end:9px; vertical-align:-5px; background:linear-gradient(135deg,var(--accent),#1a6f8c); clip-path:polygon(0 100%,0 30%,50% 0,100% 30%,100% 100%,60% 100%,60% 62%,40% 62%,40% 100%); }
+.ed-top { padding-block:0; min-height:44px; align-items:center; }
+.ed-top .toggle { position:relative; gap:7px; padding:5px 10px; border-radius:8px; color:var(--muted); font-weight:500; }
+.ed-top .toggle input { position:absolute; opacity:0; inset:0; margin:0; cursor:pointer; }
+.ed-top .toggle::before { content:""; width:7px; height:7px; border-radius:2px; border:1px solid var(--muted); box-sizing:border-box; }
+.ed-top .toggle:has(input:checked)::before { background:var(--accent); border-color:var(--accent); }
+.ed-top .toggle:has(input:focus-visible) { outline:2px solid var(--accent); }
+.ed-top .icon-btn { width:auto; display:inline-flex; gap:6px; align-items:center; padding:5px 10px; color:var(--muted); background:transparent; border-color:transparent; }
+.ed-top .icon-btn span { font-size:13px; }
+.ed-top .icon-btn:hover { color:var(--text); background:var(--panel2); }
+.tool { border-radius:9px; background:var(--bg); }
+.tool.on { background:var(--accent-soft); color:var(--accent); border-color:var(--accent-line); }
+.tgroup h6 { text-transform:none; letter-spacing:0; font-size:12px; font-weight:500; color:var(--muted); }
+.card-sub { color:var(--muted); font-weight:400; font-size:12.5px; margin-inline-start:2px; }
+.card.fold .fold-btn h3 { display:inline; }
+.surf { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.surf-c { display:block; padding:6px 4px 5px; text-align:center; font-size:12px; color:var(--muted); background:var(--bg); border:1px solid var(--line); border-radius:9px; cursor:pointer; }
+.surf-c i { display:block; height:16px; border-radius:5px; margin-bottom:4px; }
+.surf-c.on { border-color:var(--accent); color:var(--text); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+.stair-tools { border-radius:9px; }
+[data-testid="road-add-lamps"] { width:100%; display:flex; justify-content:space-between; background:var(--accent-soft); color:var(--text); border:1px solid var(--accent-line); border-radius:9px; padding:9px 12px; font-weight:500; }
+.canvas-status { justify-content:space-between; }
+.canvas-status > span:first-child { order:3; margin-inline-start:auto; color:var(--muted); }
+.canvas-status > span:nth-child(2) { order:1; } .canvas-status > span:nth-child(3) { order:2; color:var(--muted); }
