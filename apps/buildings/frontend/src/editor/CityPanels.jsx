@@ -23,6 +23,7 @@ export function RoadPanel() {
       </div>
       <label className="optf"><span>{t('rd_width')}</span><NumField value={sp.width} min={0.5} max={100} onChange={(width) => up({ width })} /><em>m</em></label>
       <label className="optf"><span>{t('rd_sidewalk')}</span><NumField value={sp.sidewalk} min={0} max={20} onChange={(sidewalk) => up({ sidewalk })} /><em>m</em></label>
+      <label className="optf"><span>{t('lp_spacing')}</span><NumField value={app.lampSpacing ?? 25} min={3} max={200} onChange={(lampSpacing) => app.set({ lampSpacing })} /><em>m</em></label>
       <span className="opt-hint muted small">{t('hint_road')}</span>
     </div>
   )
@@ -33,7 +34,8 @@ export function RoadLamps({ road }) {
   const app = useApp()
   const { t, project } = app
   const unit = project.units.name
-  const [spacing, setSpacing] = useState(25)
+  const spacing = app.lampSpacing ?? 25
+  const setSpacing = (lampSpacing) => app.set({ lampSpacing })
   const [side, setSide] = useState('both')
   const add = () => {
     const lamps = lampsAlongRoad(road, road.level_id, unit, { spacingM: spacing, side })
