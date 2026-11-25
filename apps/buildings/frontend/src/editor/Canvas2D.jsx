@@ -18,12 +18,12 @@ import {
 let CLIP = null   // copied elements survive tab switches: {elements, ids, n}
 
 const PALETTE = {
-  dark: { bg: '#14171c', grid: '#1f242b', major: '#2c333d', wall: '#8c95a3', wallS: '#d5dbe4', floor: 'rgba(79,127,181,0.14)', floorS: '#4f7fb5',
-    column: '#c9a36a', beam: '#b58cd6', roof: '#d17a5a', stair: '#7fb98a', room: 'rgba(120,200,160,0.10)', roomS: '#5fa783', sel: '#3da5ff',
-    ghost: '#3a424e', door: '#e7b04a', win: '#5fc3e8', text: '#d5dbe4', textBg: 'rgba(20,23,28,0.82)', decor: '#9aa3b2', snap: '#ffd24a', road: 'rgba(110,112,120,0.55)', walk: 'rgba(190,186,172,0.45)', lamp: '#ffd24a' },
-  light: { bg: '#f6f3ec', grid: '#e7e3d9', major: '#d6d1c4', wall: '#6d7684', wallS: '#2d333c', floor: 'rgba(60,110,170,0.12)', floorS: '#3d6ea8',
-    column: '#a47a38', beam: '#8e5eb3', roof: '#bb5a39', stair: '#4a9a5c', room: 'rgba(60,160,120,0.12)', roomS: '#2f8b66', sel: '#0a72d6',
-    ghost: '#c9c4b6', door: '#b9791a', win: '#1b8cb5', text: '#2d333c', textBg: 'rgba(246,243,236,0.85)', decor: '#6d7684', snap: '#d98a00', road: 'rgba(80,82,90,0.45)', walk: 'rgba(160,150,130,0.45)', lamp: '#d98a00' },
+  dark: { bg: '#0b0f12', grid: '#151b20', major: '#222b32', wall: '#8b979f', wallS: '#d3dade', floor: 'rgba(70,194,232,0.07)', floorS: '#3b9fbd', muted: '#8b979f',
+    column: '#c9a36a', beam: '#b58cd6', roof: '#d17a5a', stair: '#7fb98a', room: 'rgba(120,200,160,0.10)', roomS: '#5fa783', sel: '#46c2e8',
+    ghost: '#3a424e', door: '#e7b04a', win: '#5fc3e8', text: '#d5dbe4', textBg: 'rgba(11,15,18,0.82)', decor: '#9aa3b2', snap: '#ffd24a', road: 'rgba(110,112,120,0.55)', walk: 'rgba(190,186,172,0.45)', lamp: '#ffd24a' },
+  light: { bg: '#eef1f3', grid: '#e0e5e8', major: '#cdd5da', muted: '#66727b', wall: '#6d7684', wallS: '#2d333c', floor: 'rgba(60,110,170,0.12)', floorS: '#3d6ea8',
+    column: '#a47a38', beam: '#8e5eb3', roof: '#bb5a39', stair: '#4a9a5c', room: 'rgba(60,160,120,0.12)', roomS: '#2f8b66', sel: '#0b7fa6',
+    ghost: '#c2cbd1', door: '#b9791a', win: '#1b8cb5', text: '#2d333c', textBg: 'rgba(238,241,243,0.85)', decor: '#6d7684', snap: '#d98a00', road: 'rgba(80,82,90,0.45)', walk: 'rgba(160,150,130,0.45)', lamp: '#d98a00' },
 }
 
 const flat = (pts) => pts.flatMap((p) => p)
@@ -622,7 +622,7 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
   if (project.editor.show_dimensions) {
     for (const w of walls) {
       const L = dist(w.a, w.b), s0 = toS(w.a), s1 = toS(w.b)
-      if (L * view.scale < 70 || (ov && ov[w.id] && drag.current && drag.current.kind === 'handle')) continue
+      if (L * view.scale < 95 || (ov && ov[w.id] && drag.current && drag.current.kind === 'handle')) continue
       const m = [(s0[0] + s1[0]) / 2, (s0[1] + s1[1]) / 2]
       const nx = -(s1[1] - s0[1]), ny = s1[0] - s0[0], nl = Math.hypot(nx, ny) || 1
       const off = (w.thickness * view.scale) / 2 + 12
@@ -646,7 +646,10 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
   }
   for (const e of here) if (e.type === 'room') {
     const c = e.polygon.reduce((a, p) => [a[0] + p[0] / e.polygon.length, a[1] + p[1] / e.polygon.length], [0, 0]); const s = toS(c)
-    labels.push({ k: e.id, x: s[0], y: s[1], text: LTR(`${e.name || t('rt_' + e.room_type)} · ${Math.round(polygonArea(e.polygon) * 100) / 100}${unit}²`) })
+    const xs = e.polygon.map((q) => q[0]), ys = e.polygon.map((q) => q[1])
+    const minPx = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) * view.scale
+    if (minPx < 46) continue   // الغرفة أصغر من أن تتسع لاسم: لا نزاحم الرسم
+    labels.push({ k: e.id, x: s[0], y: s[1], text: LTR(e.name || t('rt_' + e.room_type)), sub: minPx >= 70 ? LTR(`${Math.round(polygonArea(e.polygon) * 100) / 100} ${unit}²`) : '', room: true })
   }
   // live drawing feedback
   const live = []
@@ -748,7 +751,9 @@ export default function Canvas2D({ onGhostChange, showGhost, onNotice }) {
         <Layer listening={false}>
           {labels.map((l) => (
             <Group key={l.k} x={l.x} y={l.y}>
-              <Text text={l.text} fontSize={l.strong ? 13 : 11} fontStyle={l.strong ? 'bold' : 'normal'} fill={l.strong ? pal.sel : pal.text} offsetX={(l.text.length - 2) * (l.strong ? 3.4 : 3)} offsetY={6} />
+              <Text text={l.text} fontSize={l.strong || l.room ? 13 : 11} fontStyle={l.strong || l.room ? 'bold' : 'normal'} fill={l.strong ? pal.sel : pal.text}
+                stroke={pal.bg} strokeWidth={4} fillAfterStrokeEnabled lineJoin="round" width={160} align="center" offsetX={80} offsetY={l.room && l.sub ? 14 : 7} />
+              {l.sub && <Text text={l.sub} y={2} fontSize={11} fill={pal.muted || pal.text} stroke={pal.bg} strokeWidth={4} fillAfterStrokeEnabled lineJoin="round" width={160} align="center" offsetX={80} opacity={0.85} />}
             </Group>
           ))}
           {handles.map((h, i) => { const s = toS(h); return <Rect key={i} x={s[0] - 5} y={s[1] - 5} width={10} height={10} fill={pal.bg} stroke={pal.sel} strokeWidth={2} /> })}

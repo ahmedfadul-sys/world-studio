@@ -24,7 +24,7 @@ export default function UnderlayPanel() {
   }
   if (!list.length) return null
   return (
-    <Card title={t('ul_title')}>
+    <Card title={t('ul_title')} fold="underlay">
       {list.map((u) => (
         <div key={u.id} className="ul-item" data-testid="underlay-item">
           <div className="row between">

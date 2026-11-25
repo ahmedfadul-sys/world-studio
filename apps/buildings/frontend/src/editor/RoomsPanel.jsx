@@ -37,7 +37,7 @@ export default function RoomsPanel() {
     app.edit((p) => ({ ...p, elements: r.elements })); app.set({ selection: r.roomIds }); setMsg(t('rm_split_done'))
   }
   return (
-    <Card title={t('rm_title')}>
+    <Card title={t('rm_title')} fold="rooms">
       {rooms.length === 2 && <button type="button" className="btn small" data-testid="rm-merge" onClick={merge}>{t('rm_merge')}</button>}
       {rooms.length === 1 && <>
         <Select label={t('rm_axis')} value={axis} onChange={setAxis} options={[{ value: 'x', label: t('rm_axis_x') }, { value: 'y', label: t('rm_axis_y') }]} />
