@@ -1,6 +1,7 @@
 """تصدير مربعات (Tiles) بحجم المنطقة المحمّلة. كلها بنفس zmin/zmax العالمي وبكسل حافة مشترك => لا شقوق."""
 from __future__ import annotations
-import json, math, os, tempfile, zipfile
+import json, math, multiprocessing, os, tempfile, zipfile
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import numpy as np
 import cv2
 from .terrain import Engine
@@ -35,6 +36,36 @@ def tile_axes(project, c, r):
     return np.linspace(c * T, (c + 1) * T, tp), np.linspace(ytop, ytop - T, tp)
 
 
+# ── تصدير متوازي: عمليات منفصلة (لا خيوط) لأن الحساب numpy/بايثون؛ كل عملية تبني محركها مرة واحدة ──
+_W: dict = {}
+
+
+def _worker_init(project_json: str, mpp: float):
+    from . import terrain as _T
+    _T.KD_WORKERS = 1                                   # العمليات نفسها تتوزع على الأنوية؛ لا نزاحمها بخيوط الفهرس
+    from .schemas import Project
+    p = Project.model_validate_json(project_json)
+    _W["p"], _W["eng"] = p, Engine(p, step=0.75 * mpp)
+
+
+def _worker_tile(job):
+    c, r, tmp = job
+    p, eng = _W["p"], _W["eng"]
+    txs, tys = tile_axes(p, c, r)
+    Z = eng.grid(txs, tys)
+    np.save(os.path.join(tmp, f"{c}_{r}.npy"), Z)
+    return c, r, float(Z.min()), float(Z.max())
+
+
+def export_workers(n_tiles: int, has_detail: bool) -> int:
+    """عدد عمليات التصدير. يتحكم به TERRAIN_WORKERS (1 = متسلسل). الافتراضي: نواة تُترك للنظام، وبسقف 4 (الذاكرة ~250 م.ب لكل عملية)."""
+    env = os.environ.get("TERRAIN_WORKERS")
+    if has_detail or n_tiles < 4:
+        return 1                                        # التفاصيل الدقيقة تحتاج سياقاً عالمياً ثقيلاً: تبقى متسلسلة
+    n = int(env) if env and env.isdigit() else min(4, max(1, (os.cpu_count() or 2) - 1))
+    return max(1, min(n, n_tiles))
+
+
 def export_tiles(project, out_path: str, progress=lambda d, t: None) -> None:
     w, ex = project.world, project.export
     nx, ny, mpp = tile_plan(project)
@@ -53,17 +84,31 @@ def export_tiles(project, out_path: str, progress=lambda d, t: None) -> None:
     done = 0
     with tempfile.TemporaryDirectory() as tmp:
         lo, hi = np.inf, -np.inf
-        for r in range(ny):
-            for c in range(nx):
-                txs, tys = tile_axes(project, c, r)
-                if dctx:                                          # شبكة موسّعة بهامش لحساب الميل فتتطابق الحواف المشتركة
-                    xp, yp = padded_axes(txs, tys)
-                    Z = dctx.apply(eng, eng.grid(xp, yp), xp, yp, mpp)
-                else:
-                    Z = eng.grid(txs, tys)
-                np.save(os.path.join(tmp, f"{c}_{r}.npy"), Z)
-                lo, hi = min(lo, float(Z.min())), max(hi, float(Z.max()))
-                done += 1; progress(done, total)
+        nworkers = export_workers(nx * ny, dctx is not None)
+        pooled = False
+        if nworkers > 1:
+            try:
+                with ProcessPoolExecutor(max_workers=nworkers, mp_context=multiprocessing.get_context("spawn"), initializer=_worker_init, initargs=(project.model_dump_json(), mpp)) as pool:
+                    futs = [pool.submit(_worker_tile, (c, r, tmp)) for r in range(ny) for c in range(nx)]
+                    for f in as_completed(futs):
+                        _, _, zl, zh = f.result()
+                        lo, hi = min(lo, zl), max(hi, zh)
+                        done += 1; progress(done, total)
+                pooled = True
+            except Exception:  # noqa: BLE001  أي عطل في العمليات (ذاكرة، منصة) => نعود للمتسلسل بدل فشل التصدير
+                lo, hi, done = np.inf, -np.inf, 0
+        if not pooled:
+            for r in range(ny):
+                for c in range(nx):
+                    txs, tys = tile_axes(project, c, r)
+                    if dctx:                                          # شبكة موسّعة بهامش لحساب الميل فتتطابق الحواف المشتركة
+                        xp, yp = padded_axes(txs, tys)
+                        Z = dctx.apply(eng, eng.grid(xp, yp), xp, yp, mpp)
+                    else:
+                        Z = eng.grid(txs, tys)
+                    np.save(os.path.join(tmp, f"{c}_{r}.npy"), Z)
+                    lo, hi = min(lo, float(Z.min())), max(hi, float(Z.max()))
+                    done += 1; progress(done, total)
         if ex.mode == "fixed":
             lo, hi = ex.zmin_m, ex.zmax_m
         if hi - lo < 1e-6:

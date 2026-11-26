@@ -211,6 +211,7 @@ def nearest_points_ref(path, X, Y):
 # ── أقرب مسافة إلى مسار: نسخة سريعة (فهرس KD) مع الاحتفاظ بالنسخة المرجعية للمقارنة ──
 KD_MIN_SEGS = 96             # دون هذا العدد من المقاطع تبقى الخوارزمية القديمة (أسرع وأدق وتحافظ على نتائج المشاريع الصغيرة)
 KD_MAX_DENSE = 400_000       # سقف نقاط الفهرس بعد تكثيف المقاطع الطويلة؛ فوقه تُستعمل النسخة القديمة
+KD_WORKERS = -1             # خيوط استعلام الفهرس (-1 = كل الأنوية)؛ عمليات التصدير المتوازي تضبطها على 1 كي لا تتزاحم
 KD_K = 4                     # عدد أقرب رؤوس يُفحص مقطعاها المجاوران (يغطي تقاطع فرعين من المسار)
 
 
@@ -250,7 +251,7 @@ def _nearest_kd(path, Pq, reach, delta, cache=True):
     n = len(px) - 1
     k = min(KD_K, tree.n)
     bound = np.inf if not np.isfinite(reach) else reach + 2.0 * delta + float(np.max(np.hypot(np.diff(px), np.diff(py)))) * 0.0
-    d, kk = tree.query(Pq, k=k, distance_upper_bound=bound)
+    d, kk = tree.query(Pq, k=k, distance_upper_bound=bound, workers=KD_WORKERS)
     d, kk = d.reshape(len(Pq), k), kk.reshape(len(Pq), k)
     ok = np.isfinite(d[:, 0])
     N = len(Pq)

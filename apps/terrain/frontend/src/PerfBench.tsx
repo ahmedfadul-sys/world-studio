@@ -42,8 +42,8 @@ export default function PerfBench({ project, onClose }: { project: Project; onCl
           <table className="bench-t"><tbody>
             {job.steps.map((s, i) => <tr key={i}><td>{s.label}{s.note && <small> · {s.note}</small>}</td><td dir="ltr">{fmt(s.seconds)}</td><td dir="ltr">{s.mem_mb ? `${s.mem_mb} MB` : ""}</td></tr>)}
           </tbody></table>
-          {job.estimate && <div className="msg warn">تصدير العالم كاملاً: <b>{job.estimate.tiles} مربع</b> × {fmt(job.estimate.seconds_per_tile)} ≈ <b>{job.estimate.total_minutes >= 90 ? `${(job.estimate.total_minutes / 60).toFixed(1)} ساعة` : `${job.estimate.total_minutes} دقيقة`}</b>
-            <br /><small>{job.estimate.note}</small></div>}
+          {job.estimate && <div className="msg warn">تصدير العالم كاملاً: <b>{job.estimate.tiles} مربع</b> × {fmt(job.estimate.seconds_per_tile)}{job.estimate.workers && job.estimate.workers > 1 ? ` ÷ ${job.estimate.workers} عمليات` : ""} ≈ <b>{job.estimate.total_minutes >= 90 ? `${(job.estimate.total_minutes / 60).toFixed(1)} ساعة` : `${job.estimate.total_minutes} دقيقة`}</b>
+            <br /><small>{job.estimate.note}{job.estimate.sequential_minutes ? ` · متسلسل: ${job.estimate.sequential_minutes} دقيقة` : ""}</small></div>}
           {m && <p className="hint" dir="ltr">CPU {m.cpu_count} · RAM {m.ram_gb ?? "?"} GB · Python {m.python} · NumPy {m.numpy}{m.scipy ? ` · SciPy ${m.scipy}` : ""}</p>}
         </>}
       </div>
