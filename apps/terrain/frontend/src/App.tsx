@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import MapCanvas, { type Mode, type Overlay, type Sel } from "./MapCanvas";
 import { analyze, parseTelemetry, syntheticSessions, type Session, type TStats } from "./telemetry";
 import Chart from "./Chart";
@@ -45,6 +45,7 @@ function MatSel({ label, value, onChange, mats }: { label: string; value: string
 }
 const DIRS: [string, number][] = [["شمال", 0], ["شرق", 90], ["جنوب", 180], ["غرب", 270]];
 const MODES: [Mode, string][] = [["select", "تحديد"], ["point", "نقطية"], ["line", "خطية"], ["cell", "خلية"], ["profile", "مقطع"], ["biome", "منطقة"], ["site", "منشأة"], ["zone", "نباتات"], ["poi", "اهتمام"], ["route", "مسار ذكي"]];
+const MODE_ICON: Record<Mode, string> = { select: "M5 3l14 7-6 2-2 6z", point: "M12 3a6 6 0 016 6c0 5-6 12-6 12S6 14 6 9a6 6 0 016-6z", line: "M4 19c4-1 3-8 8-8s4-6 8-7", cell: "M4 4h16v16H4zM4 12h16M12 4v16", profile: "M3 17l6-8 4 5 3-3 5 6", biome: "M5 18l2-12 8-2 4 8-6 6z", site: "M4 20V9l8-5 8 5v11M9 20v-6h6v6", zone: "M12 21v-8M12 13c-4 0-6-3-6-7 4 0 6 2 6 7zM12 13c4 0 6-3 6-7-4 0-6 2-6 7z", poi: "M12 3l3 6 6 1-4.5 4.5L18 21l-6-3-6 3 1.5-6.5L3 10l6-1z", route: "M4 18c3-8 5 0 8-6s5-6 8-8" };
 type Tab = "world" | "design" | "play" | "look" | "export";
 const TABS: [Tab, string][] = [["world", "العالم"], ["design", "التصميم"], ["play", "اللعب"], ["look", "المظهر"], ["export", "التصدير"]];
 const fmtDur = (s: number) => `${Math.floor(s / 3600)}س ${Math.floor((s % 3600) / 60)}د`;
@@ -362,14 +363,21 @@ export default function App() {
 
   return (
     <div className={`app${sideOpen ? "" : " side-closed"}`}>
-      <aside className={`panel tab-${tab}`}>
-        <div className="brand">
-          <h1>TerrainForge</h1>
-          <button className="icon" title="إخفاء الشريط الجانبي" aria-label="إخفاء الشريط الجانبي" onClick={() => setSideOpen(false)}>⮜</button>
-        </div>
-        <input className="title" value={project.name} onChange={(e) => set((p) => { p.name = e.target.value; })} />
+      <header className="top">
+        <button className="icon ghost" title={sideOpen ? "إخفاء اللوحة" : "إظهار اللوحة"} aria-label="اللوحة الجانبية" aria-pressed={sideOpen} onClick={() => setSideOpen((o) => !o)}>☰</button>
+        <div className="logo"><i />TerrainForge</div>
+        <input className="title" aria-label="اسم المشروع" value={project.name} onChange={(e) => set((p) => { p.name = e.target.value; })} />
         <nav className="tabs" role="tablist">{TABS.map(([t, l]) => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{l}</button>)}</nav>
-        <div className="panel-body">
+        <button className="icon ghost" title={theme === "dark" ? "الثيم الفاتح" : "الثيم الغامق"} aria-label="تبديل الثيم" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}>{theme === "dark" ? "☀" : "☾"}</button>
+        <button className="top3d" onClick={() => setShow3d(true)} disabled={hasErrors} title="معاينة العالم ثلاثياً (نفس ملف GLB المُصدَّر)">معاينة 3D</button>
+      </header>
+      <div className="mainrow">
+      <aside className={`panel tab-${tab}`}>
+        <div className="panel-body" onClick={(e) => {
+          const h = (e.target as HTMLElement).closest("h2"); if (!h) return;
+          const closed = h.classList.toggle("closed");
+          for (let n = h.nextElementSibling; n && n.tagName !== "H2"; n = n.nextElementSibling) (n as HTMLElement).hidden = closed;
+        }}>
 
         <section data-tab="world">
           <h2>العالم</h2>
@@ -968,21 +976,15 @@ export default function App() {
         </div>
       </aside>
 
+      <div className="rail" role="toolbar" aria-label="أدوات الرسم">
+        {MODES.map(([m, l], i) => <Fragment key={m}>{(i === 1 || i === 6) && <hr />}<button className={`t${mode === m ? " on" : ""}`} title={l} aria-label={l} aria-pressed={mode === m} onClick={() => { setMode(m); setDraft([]); setTab("design"); }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={MODE_ICON[m]} /></svg><span className="tip">{l}</span></button></Fragment>)}
+      </div>
       <main className="stage">
-        <div className="toolbar" role="toolbar" aria-label="أدوات الرسم">
-          <button className="icon" title={sideOpen ? "إخفاء الشريط الجانبي" : "إظهار الشريط الجانبي"} aria-label="الشريط الجانبي" aria-pressed={sideOpen} onClick={() => setSideOpen((o) => !o)}>☰</button>
-          <span className="sep" />
-          {MODES.map(([m, l]) => <button key={m} className={mode === m ? "on" : ""} onClick={() => { setMode(m); setDraft([]); setTab("design"); }}>{l}</button>)}
-          <span className="sep" />
-          <button className="icon" title={theme === "dark" ? "الثيم الأزرق الفاتح" : "الثيم الأزرق الغامق"} aria-label="تبديل الثيم" onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}>{theme === "dark" ? "☀" : "☾"}</button>
-        </div>
         <div className="bar">
           <label>العرض <select value={viewMat ? "mat" : "h"} onChange={(e) => setViewMat(e.target.value === "mat")}><option value="h">ارتفاعات</option><option value="mat">مواد</option></select></label>
-          <button onClick={() => setShow3d(true)} disabled={hasErrors} title="معاينة العالم ثلاثياً (نفس ملف GLB المُصدَّر)">معاينة 3D</button>
           <label><input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} /> الشبكة</label>
           <label>فاصل الكنتور (م) <span className="mini"><Num value={interval} min={0} onChange={setIntervalM} /></span></label>
           {preview && <span className="hint">النطاق {preview.zmin.toFixed(1)} → {preview.zmax.toFixed(1)} م</span>}
-          {hover && <span className="hint" dir="ltr">X {hover[0].toFixed(0)} · Y {hover[1].toFixed(0)}{preview ? ` · Z ${ground(hover[0], hover[1]).toFixed(1)}` : ""}</span>}
         </div>
         <MapCanvas project={project} preview={preview} mode={mode} sel={sel} cellSel={cellSel} draft={draft} profileLine={profileLine} showGrid={showGrid} interval={interval} viewMat={viewMat}
           onClickWorld={clickWorld} onDoubleClick={finishDraft} onSelect={setSel} onOpenSite={embedded ? openInBim : undefined} onMovePoint={movePoint} onMoveVertex={moveVertex} onMoveBiomeVertex={moveBiomeVertex} onMoveZoneVertex={moveZoneVertex} onMoveSite={moveSite} onMovePoi={movePoi}
