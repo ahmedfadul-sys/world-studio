@@ -9,6 +9,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 from scipy.ndimage import uniform_filter1d, map_coordinates
 from scipy.interpolate import PchipInterpolator
+from scipy.spatial import cKDTree
 from .noise import fbm
 from .erosion import erode
 
@@ -160,7 +161,7 @@ def smooth_path(points, step: float):
     return xy[:, 0], xy[:, 1], s
 
 
-def nearest_grid(path, xs, ys, reach):
+def nearest_grid_ref(path, xs, ys, reach):
     """(أقرب مسافة، موضع s، جهة: +1 يسار اتجاه الرسم) — نافذة صغيرة لكل مقطع."""
     px, py, s = path
     H, W = len(ys), len(xs)
@@ -186,7 +187,7 @@ def nearest_grid(path, xs, ys, reach):
     return dist, sv, sg
 
 
-def nearest_points(path, X, Y):
+def nearest_points_ref(path, X, Y):
     px, py, s = path
     x0, y0, vx, vy = px[:-1], py[:-1], np.diff(px), np.diff(py)
     L2 = np.maximum(vx * vx + vy * vy, 1e-12)
@@ -205,6 +206,150 @@ def nearest_points(path, X, Y):
         cr = vx[sl][k] * (Y - y0[sl][k]) - vy[sl][k] * (X - x0[sl][k])
         bg[b] = np.sign(cr)[b]
     return best, bs, bg
+
+
+# ── أقرب مسافة إلى مسار: نسخة سريعة (فهرس KD) مع الاحتفاظ بالنسخة المرجعية للمقارنة ──
+KD_MIN_SEGS = 96             # دون هذا العدد من المقاطع تبقى الخوارزمية القديمة (أسرع وأدق وتحافظ على نتائج المشاريع الصغيرة)
+KD_MAX_DENSE = 400_000       # سقف نقاط الفهرس بعد تكثيف المقاطع الطويلة؛ فوقه تُستعمل النسخة القديمة
+KD_K = 4                     # عدد أقرب رؤوس يُفحص مقطعاها المجاوران (يغطي تقاطع فرعين من المسار)
+
+
+def _dense_index(px, py, delta):
+    """رؤوس المسار + نقاط وسيطة على المقاطع الأطول من delta، مع رقم المقطع لكل نقطة. None إن تجاوز السقف."""
+    n = len(px) - 1
+    ln = np.hypot(np.diff(px), np.diff(py))
+    m = np.maximum(1, np.ceil(ln / max(delta, 1e-6)).astype(np.int64))
+    if int(m.sum()) + 1 > KD_MAX_DENSE:
+        return None
+    seg = np.repeat(np.arange(n), m)
+    first = np.cumsum(m) - m
+    frac = (np.arange(len(seg)) - first[seg]) / m[seg]
+    x = px[seg] + frac * (px[seg + 1] - px[seg]); y = py[seg] + frac * (py[seg + 1] - py[seg])
+    return np.r_[x, px[-1]], np.r_[y, py[-1]], np.r_[seg, n - 1]
+
+
+_KD_CACHE: dict = {}      # فهارس KD للمسارات الثابتة (مسارات المحرك تُنشأ مرة وتُستعمل في مئات الاستدعاءات)
+
+
+def _nearest_kd(path, Pq, reach, delta, cache=True):
+    """(مسافة، s، جهة) لكل نقطة في Pq (N,2) بحدّ reach (inf = بلا حد). None إن تعذّر الفهرس."""
+    px, py, s = path
+    hit = _KD_CACHE.get(id(px)) if cache else None
+    if hit is not None and hit[0] is px and hit[1] == delta:
+        _, _, dseg, tree = hit
+    else:
+        idx = _dense_index(px, py, delta)
+        if idx is None:
+            return None
+        dx_, dy_, dseg = idx
+        tree = cKDTree(np.c_[dx_, dy_])
+        if cache:
+            if len(_KD_CACHE) >= 64:
+                _KD_CACHE.pop(next(iter(_KD_CACHE)))
+            _KD_CACHE[id(px)] = (px, delta, dseg, tree)       # المرجع px محفوظ للتحقق من أن المعرّف لم يُعاد استعماله
+    n = len(px) - 1
+    k = min(KD_K, tree.n)
+    bound = np.inf if not np.isfinite(reach) else reach + 2.0 * delta + float(np.max(np.hypot(np.diff(px), np.diff(py)))) * 0.0
+    d, kk = tree.query(Pq, k=k, distance_upper_bound=bound)
+    d, kk = d.reshape(len(Pq), k), kk.reshape(len(Pq), k)
+    ok = np.isfinite(d[:, 0])
+    N = len(Pq)
+    best = np.full(N, np.inf); bs = np.zeros(N); bg = np.zeros(N)
+    if not ok.any():
+        return best, bs, bg
+    P = Pq[ok]; segs = dseg[np.minimum(kk[ok], len(dseg) - 1)]                 # (M,k)
+    cand = np.concatenate([segs - 1, segs, segs + 1], axis=1)                  # (M,3k)
+    cand = np.clip(cand, 0, n - 1)
+    cand.sort(axis=1)                                                           # ترتيب تصاعدي: يطابق أفضلية أقل رقم عند التعادل
+    M = len(P); bb = np.full(M, np.inf); bss = np.zeros(M); bgg = np.zeros(M)
+    X, Y = P[:, 0], P[:, 1]
+    for j in range(cand.shape[1]):
+        a = cand[:, j]
+        x0, y0, vx, vy = px[a], py[a], px[a + 1] - px[a], py[a + 1] - py[a]
+        t = np.clip(((X - x0) * vx + (Y - y0) * vy) / np.maximum(vx * vx + vy * vy, 1e-12), 0.0, 1.0)
+        dd = np.hypot(X - (x0 + t * vx), Y - (y0 + t * vy))
+        m = dd < bb
+        if m.any():
+            bb[m] = dd[m]
+            bss[m] = (s[a] + t * (s[a + 1] - s[a]))[m]
+            bgg[m] = np.sign(vx * (Y - y0) - vy * (X - x0))[m]
+    best[ok], bs[ok], bg[ok] = bb, bss, bgg
+    return best, bs, bg
+
+
+KD_RATIO = 6.0              # يُستعمل KD حين تفوق كلفة النوافذ المتراكبة (القديمة) كلفة نافذة الشبكة الواحدة بهذا العامل
+
+
+def _kd_pays_off(px, py, xs, ys, reach):
+    """تقدير كلفتين بعدد البكسلات: القديمة = مجموع نوافذ كل مقطع (تتراكب حين يكون reach أكبر بكثير من طول المقطع)، الجديدة = نافذة المسار كاملة."""
+    dx, dy = abs(xs[1] - xs[0]), abs(ys[0] - ys[1])
+    ln = np.hypot(np.diff(px), np.diff(py))
+    old = float(np.sum((ln + 2 * reach) ** 2)) / (dx * dy) + 400.0 * len(ln)       # 400 بكسل مكافئ لكل مقطع كحمل بايثون
+    bw = min(px.max() - px.min() + 2 * reach, (xs[-1] - xs[0]) + 2 * reach) / dx
+    bh = min(py.max() - py.min() + 2 * reach, (ys[0] - ys[-1]) + 2 * reach) / dy
+    return old > KD_RATIO * min(bw * bh, len(xs) * len(ys))
+
+
+def nearest_grid(path, xs, ys, reach):
+    """(أقرب مسافة، موضع s، جهة: +1 يسار اتجاه الرسم). للمسارات الطويلة: فهرس KD على الجزء القريب من الشبكة فقط."""
+    px, py, s = path
+    if len(px) - 1 < KD_MIN_SEGS:
+        return nearest_grid_ref(path, xs, ys, reach)
+    H, W = len(ys), len(xs)
+    if not _kd_pays_off(px, py, xs, ys, reach):
+        return nearest_grid_ref(path, xs, ys, reach)
+    dist = np.full((H, W), np.inf, np.float32)
+    sv, sg = np.zeros((H, W), np.float32), np.zeros((H, W), np.float32)
+    dx, dy = xs[1] - xs[0], ys[0] - ys[1]
+    c0 = max(0, int(math.floor((px.min() - reach - xs[0]) / dx))); c1 = min(W, int(math.ceil((px.max() + reach - xs[0]) / dx)) + 1)
+    r0 = max(0, int(math.floor((ys[0] - py.max() - reach) / dy))); r1 = min(H, int(math.ceil((ys[0] - py.min() + reach) / dy)) + 1)
+    if c0 >= c1 or r0 >= r1:
+        return dist, sv, sg                                                     # المسار خارج هذه الشبكة كلياً
+    # مقاطع تقترب من نافذة الشبكة فقط (تُقصّ المسارات الطويلة جداً عند المربعات الصغيرة)
+    wx0, wx1, wy0, wy1 = xs[c0] - reach, xs[c1 - 1] + reach, ys[r1 - 1] - reach, ys[r0] + reach
+    sx0, sx1 = np.minimum(px[:-1], px[1:]), np.maximum(px[:-1], px[1:])
+    sy0, sy1 = np.minimum(py[:-1], py[1:]), np.maximum(py[:-1], py[1:])
+    near = (sx1 >= wx0) & (sx0 <= wx1) & (sy1 >= wy0) & (sy0 <= wy1)
+    if not near.any():
+        return dist, sv, sg
+    if not near.all():                                                          # مرّر المقاطع القريبة فقط (متصلة غالباً؛ الفجوات تُعالج بتقسيم إلى مجموعات)
+        ids = np.nonzero(near)[0]
+        runs = np.split(ids, np.nonzero(np.diff(ids) > 1)[0] + 1)
+    else:
+        runs = [np.arange(len(px) - 1)]
+    X, Y = np.meshgrid(xs[c0:c1], ys[r0:r1])
+    Pq = np.c_[X.ravel(), Y.ravel()]
+    bd = np.full(len(Pq), np.inf); bs_ = np.zeros(len(Pq)); bg_ = np.zeros(len(Pq))
+    delta = max(reach / 64.0, 1e-3)
+    for run in runs:
+        a, b = int(run[0]), int(run[-1]) + 2                                    # رؤوس المقاطع a..b-1
+        whole = a == 0 and b >= len(px)
+        sub = path if whole else (px[a:b], py[a:b], s[a:b])
+        if len(sub[0]) < 2:
+            continue
+        res = _nearest_kd(sub, Pq, reach, delta, cache=whole)
+        if res is None:
+            return nearest_grid_ref(path, xs, ys, reach)
+        d, ss, gg = res
+        m = d < bd
+        bd[m], bs_[m], bg_[m] = d[m], ss[m], gg[m]
+    sh = (r1 - r0, c1 - c0)
+    dist[r0:r1, c0:c1] = bd.reshape(sh); sv[r0:r1, c0:c1] = bs_.reshape(sh); sg[r0:r1, c0:c1] = bg_.reshape(sh)
+    return dist, sv, sg
+
+
+def nearest_points(path, X, Y):
+    """نقاط مبعثرة: للمسارات الطويلة فهرس KD بدل مصفوفة (مقاطع × نقاط)."""
+    px, py, s = path
+    X, Y = np.asarray(X, float), np.asarray(Y, float)
+    if len(px) - 1 < KD_MIN_SEGS or X.size * (len(px) - 1) < 3_000_000:
+        return nearest_points_ref(path, X, Y)
+    total = float(np.sum(np.hypot(np.diff(px), np.diff(py))))
+    res = _nearest_kd(path, np.c_[X.ravel(), Y.ravel()], np.inf, max(total / 60000.0, 1e-3))
+    if res is None:
+        return nearest_points_ref(path, X, Y)
+    return tuple(a.reshape(X.shape) for a in res)
+
 
 
 def _inside(poly, xs, ys):

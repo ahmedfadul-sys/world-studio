@@ -123,3 +123,12 @@ progress { height:8px; accent-color:var(--accent); }
 details.legacy { margin-top:10px; border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
 details.legacy summary { cursor:pointer; color:var(--mute); }
 .m3d-bar button, .m3d-bar select { width:auto; margin:0; }
+
+/* ── صفحة قياس الأداء ── */
+.bench { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; width:min(640px,94vw); max-height:90vh; overflow:auto; display:flex; flex-direction:column; gap:10px; }
+.bench-h { display:flex; justify-content:space-between; align-items:center; font-size:16px; }
+.bench-t { width:100%; border-collapse:collapse; font-size:13px; }
+.bench-t td { padding:6px 4px; border-bottom:1px solid var(--line); }
+.bench-t td:nth-child(n+2) { text-align:end; white-space:nowrap; }
+.bench-t small { color:var(--mute); }
+.modal3d.center { align-items:center; justify-content:center; background:rgba(0,0,0,.6); }

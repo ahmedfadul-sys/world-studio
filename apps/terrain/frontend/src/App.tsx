@@ -3,7 +3,8 @@ import MapCanvas, { type Mode, type Overlay, type Sel } from "./MapCanvas";
 import { analyze, parseTelemetry, syntheticSessions, type Session, type TStats } from "./telemetry";
 import Chart from "./Chart";
 import { download, exportCapabilities, exportZip, fetchPreview, fetchProfile, jobDownload, jobStatus, lotsApi, routeApi, simulateApi, startTiles, startWorldExport, suggestSites, texEnsure, viewshedApi, worldJobStatus, type Capabilities } from "./api";
-const World3D = lazy(() => import("./World3D"));      // three.js يُحمَّل عند فتح المعاينة فقط
+const World3D = lazy(() => import("./World3D"));
+const PerfBench = lazy(() => import("./PerfBench"));      // three.js يُحمَّل عند فتح المعاينة فقط
 import TexBrowser from "./TexBrowser";
 import { sampleZ } from "./render";
 import {
@@ -93,6 +94,7 @@ export default function App() {
   const [job, setJob] = useState<{ id: string; done: number; total: number; state: string; error: string | null } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [show3d, setShow3d] = useState(false);
+  const [showBench, setShowBench] = useState(false);
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [wjob, setWjob] = useState<{ id: string; fmt: "glb" | "blend"; state: string; done: number; stage: string | null; error: string | null } | null>(null);
 
@@ -957,6 +959,9 @@ export default function App() {
             <button className="primary" disabled={hasErrors} onClick={() => exportWorld("tiles")}>{hasErrors ? "أصلح الأخطاء أولاً" : "تصدير العالم + المنشآت (مربعات)"}</button>
             <button disabled={hasErrors} onClick={() => exportWorld("single")}>نفس التصدير بصورة واحدة</button></>}
           </details>
+          <h2>قياس الأداء</h2>
+          <p className="hint">يقيس سرعة جهازك ويقدّر زمن تصدير العالم كاملاً.</p>
+          <button onClick={() => setShowBench(true)}>فتح صفحة قياس الأداء</button>
           <div className="row"><button onClick={save}>حفظ المشروع</button><button onClick={() => fileRef.current?.click()}>فتح مشروع</button>
             <input ref={fileRef} type="file" accept=".json" hidden onChange={(e) => e.target.files?.[0] && load(e.target.files[0])} /></div>
         </section>
@@ -996,6 +1001,7 @@ export default function App() {
         </div>
         </div>
       </main>
+      {showBench && <Suspense fallback={null}><PerfBench project={project} onClose={() => setShowBench(false)} /></Suspense>}
       {show3d && <Suspense fallback={<div className="modal3d"><div className="m3d-note">جارٍ تحميل المعاينة…</div></div>}><World3D project={project} onClose={() => setShow3d(false)} /></Suspense>}
     </div>
   );

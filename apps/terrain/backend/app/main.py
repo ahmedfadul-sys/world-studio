@@ -140,6 +140,26 @@ def job_download(jid: str):
     return FileResponse(j["path"], media_type=j.get("media", "application/zip"), filename=j.get("filename", "terrain_tiles.zip"))
 
 
+# ───────────── قياس الأداء على جهاز المستخدم ─────────────
+@app.post("/api/bench")
+def bench_start(body: dict):
+    from . import bench
+    p = Project.model_validate(body["project"]) if body.get("project") else None
+    try:
+        return {"job_id": bench.start(p)}
+    except RuntimeError as e:
+        raise HTTPException(409, detail=str(e))
+
+
+@app.get("/api/bench/{jid}")
+def bench_status(jid: str):
+    from . import bench
+    j = bench.BENCH.get(jid)
+    if not j:
+        raise HTTPException(404, "قياس غير موجود")
+    return j
+
+
 # ───────────── تصدير العالم: GLB / .blend (يبقى تصدير الصور والأكواد كما هو) ─────────────
 def _reap(keep: int = 12):
     """يحذف ملفات المهام القديمة (الأقدم أولاً) كي لا تتراكم في المجلد المؤقت."""
