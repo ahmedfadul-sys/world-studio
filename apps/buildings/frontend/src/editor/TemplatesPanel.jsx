@@ -45,7 +45,7 @@ export default function TemplatesPanel() {
   }
 
   return (
-    <Card title={`${t('tpl_title')} — ${t('tool_' + type)}`}>
+    <Card title={`${t('tpl_title')} — ${t('tool_' + type)}`} fold="tpl">
       <p className="muted small">{selType ? t('tpl_hint_sel') : t('tpl_hint_draw')}</p>
       <ul className="tpl-list" data-testid="tpl-list">
         {list.map((x) => (

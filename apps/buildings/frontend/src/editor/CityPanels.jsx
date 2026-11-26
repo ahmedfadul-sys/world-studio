@@ -5,22 +5,26 @@ import { guideLines, makeGuide } from '../guides.js'
 import { ensureRoadMaterials, lampsAlongRoad, ROAD_PRESETS, SURFACES } from '../roads.js'
 import { useState } from 'react'
 
-/** Floating options of the road tool: surface, width, sidewalk. Choosing a surface loads its usual widths. */
+export const SURF_COLOR = { asphalt: '#3a3b3e', dirt: '#8a6a44', stone: '#8f8a7d', gravel: '#9a9488', paving: '#a9998a', concrete: '#9b9b9b', sand: '#d8c690' }
+
+/** Options bar of the road tool (top of the canvas): surface swatches, width, sidewalk. Picking a surface loads its usual widths. */
 export function RoadPanel() {
   const app = useApp()
-  const { t, project } = app
-  const unit = project.units.name
+  const { t } = app
   const sp = app.roadSpec || { surface: 'asphalt', width: ROAD_PRESETS.asphalt.width, sidewalk: ROAD_PRESETS.asphalt.sidewalk }
   const up = (patch) => app.set({ roadSpec: { ...sp, ...patch } })
   return (
-    <div className="room-wiz" role="group" aria-label={t('rd_title')} data-testid="road-panel">
-      <h4>{t('rd_title')}</h4>
-      <Select label={t('rd_surface')} value={sp.surface} onChange={(v) => up({ surface: v, ...ROAD_PRESETS[v] })} options={SURFACES.map((s) => ({ value: s, label: t('sf_' + s) }))} />
-      <div className="rw-size">
-        <Field label={`${t('rd_width')} (m)`}><NumField value={sp.width} min={0.5} max={100} onChange={(width) => up({ width })} /></Field>
-        <Field label={`${t('rd_sidewalk')} (m)`}><NumField value={sp.sidewalk} min={0} max={20} onChange={(sidewalk) => up({ sidewalk })} /></Field>
+    <div className="opts road-opts" role="group" aria-label={t('rd_title')} data-testid="road-panel">
+      <strong>{t('rd_title')}</strong>
+      <div className="swatches" role="radiogroup" aria-label={t('rd_surface')}>
+        {SURFACES.map((s) => (
+          <button key={s} type="button" role="radio" aria-checked={sp.surface === s} aria-label={t('sf_' + s)} title={t('sf_' + s)} className={`sw ${sp.surface === s ? 'on' : ''}`} style={{ background: SURF_COLOR[s] }} onClick={() => up({ surface: s, ...ROAD_PRESETS[s] })} />
+        ))}
       </div>
-      <p className="muted small">{t('hint_road')}</p>
+      <label className="optf"><span>{t('rd_width')}</span><NumField value={sp.width} min={0.5} max={100} onChange={(width) => up({ width })} /><em>m</em></label>
+      <label className="optf"><span>{t('rd_sidewalk')}</span><NumField value={sp.sidewalk} min={0} max={20} onChange={(sidewalk) => up({ sidewalk })} /><em>m</em></label>
+      <label className="optf"><span>{t('lp_spacing')}</span><NumField value={app.lampSpacing ?? 25} min={3} max={200} onChange={(lampSpacing) => app.set({ lampSpacing })} /><em>m</em></label>
+      <span className="opt-hint muted small">{t('hint_road')}</span>
     </div>
   )
 }
@@ -30,7 +34,8 @@ export function RoadLamps({ road }) {
   const app = useApp()
   const { t, project } = app
   const unit = project.units.name
-  const [spacing, setSpacing] = useState(25)
+  const spacing = app.lampSpacing ?? 25
+  const setSpacing = (lampSpacing) => app.set({ lampSpacing })
   const [side, setSide] = useState('both')
   const add = () => {
     const lamps = lampsAlongRoad(road, road.level_id, unit, { spacingM: spacing, side })
@@ -62,7 +67,7 @@ export function GuidePanel() {
     set((gs) => [...gs, makeGuide(kind, unit, { name: `${t('gd_' + kind)} ${gs.length + 1}`, origin: bb || [0, 0] })])
   }
   return (
-    <Card title={t('gd_title')} className="guide-panel">
+    <Card title={t('gd_title')} className="guide-panel" fold="guides" badge={guides.length}>
       <p className="muted small">{t('gd_hint')}</p>
       <div className="row wrap">
         <Select label={t('gd_kind')} value={kind} onChange={setKind} options={GK.map((k) => ({ value: k, label: t('gd_' + k) }))} />

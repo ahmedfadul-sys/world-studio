@@ -23,11 +23,35 @@ export function Icon({ name, size = 20 }) {
   )
 }
 
-export function Card({ title, children, actions, className = '' }) {
+/** Persisted open/closed state of a collapsible card (per card key; falls back to the default when storage is unavailable). */
+function useFold(key, dflt) {
+  const k = 'bim.fold.' + key
+  const [open, setOpen] = useState(() => { try { const v = window.localStorage.getItem(k); return v === null ? dflt : v === '1' } catch { return dflt } })
+  const set = (v) => { setOpen(v); try { window.localStorage.setItem(k, v ? '1' : '0') } catch { /* storage may be blocked */ } }
+  return [open, set]
+}
+
+export function Card({ title, children, actions, className = '', fold, defaultOpen = false, badge, sub }) {
+  const [open, setOpen] = useFold(fold || '_', defaultOpen)
+  if (!fold) {
+    return (
+      <section className={`card ${className}`}>
+        {(title || actions) && <header className="card-h"><h3>{title}</h3><div className="row">{actions}</div></header>}
+        {children}
+      </section>
+    )
+  }
   return (
-    <section className={`card ${className}`}>
-      {(title || actions) && <header className="card-h"><h3>{title}</h3><div className="row">{actions}</div></header>}
-      {children}
+    <section className={`card fold ${open ? 'open' : ''} ${className}`}>
+      <header className="card-h">
+        <button type="button" className="fold-btn" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <h3>{title}</h3>{sub && <small className="card-sub">{sub}</small>}
+          {badge !== undefined && badge !== null && <span className="badge">{badge}</span>}
+          <svg className="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+        {open && actions && <div className="row">{actions}</div>}
+      </header>
+      {open && children}
     </section>
   )
 }

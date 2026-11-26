@@ -17,6 +17,7 @@ import { NeedProject } from './ui.jsx'
 
 const Preview3D = lazy(() => import('./panels/Preview3D.jsx')) // three.js is only loaded when the tab is opened
 
+const PRIMARY = ['projects', 'editor', 'preview', 'building', 'materials', 'export']
 const SECTIONS = [
   ['dashboard', () => <Dashboard />], ['projects', () => <Projects />], ['editor', () => <Editor />, true], ['preview', () => <Preview3D />],
   ['building', () => <Building />], ['materials', () => <Materials />], ['modules', () => <Modules />],
@@ -52,6 +53,15 @@ export default function App() {
     <div className="app">
       <header className="top">
         <div className="brand"><b>{t('appName')}</b> <span className="muted">{t('edition')}</span></div>
+        <nav className="nav-top" aria-label="sections">
+          {PRIMARY.map((k) => <button key={k} type="button" className={`navbtn ${k === section ? 'on' : ''}`} onClick={() => app.set({ section: k })} data-section={k}>{t('nav_' + k)}</button>)}
+          <details className={`more ${PRIMARY.includes(section) ? '' : 'on'}`} onToggle={(e) => { if (e.currentTarget.open) { const close = () => { e.currentTarget.open = false }; setTimeout(() => window.addEventListener('click', close, { once: true }), 0) } }}>
+            <summary className="navbtn">{PRIMARY.includes(section) ? t('nav_more') : t('nav_' + section)} ▾</summary>
+            <div className="more-menu">
+              {SECTIONS.filter(([k]) => !PRIMARY.includes(k)).map(([k]) => <button key={k} type="button" className={`navbtn ${k === section ? 'on' : ''}`} onClick={() => app.set({ section: k })} data-section={k}>{t('nav_' + k)}</button>)}
+            </div>
+          </details>
+        </nav>
         {fromStudio && <button type="button" className="btn small" data-testid="back-terrain" onClick={backToTerrain}>{t('back_terrain')}</button>}
         <div className="grow">{project && <span className="pname">{project.name}</span>}{project && project.site && <span className="muted"> · {t('site_label')}: {project.site.kind} {project.site.shape === 'circle' ? `⌀${project.site.diameter_m} m` : `${project.site.width_m}×${project.site.length_m} m`}</span>}</div>
         {project && (
@@ -66,9 +76,6 @@ export default function App() {
         <button type="button" className="icon-btn" aria-label={t('theme')} title={t('theme')} onClick={() => app.setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☀' : '☾'}</button>
       </header>
       <div className="shell">
-        <nav className="nav" aria-label="sections">
-          {SECTIONS.map(([k]) => <button key={k} type="button" className={`navbtn ${k === section ? 'on' : ''}`} onClick={() => app.set({ section: k })} data-section={k}>{t('nav_' + k)}</button>)}
-        </nav>
         <main className="main">
           <Boundary key={section}>
             <Suspense fallback={<div className="page">{t('loading')}</div>}>
