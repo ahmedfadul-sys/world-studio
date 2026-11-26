@@ -98,3 +98,10 @@ export async function texCache(): Promise<TexRecord[]> {
 }
 export async function texEnsure(refs: string[]): Promise<{ ref: string; ok: boolean; error?: string }[]> { return (await (await post("/api/textures/ensure", { refs })).json()).results; }
 export const texFileUrl = (r: { provider: string; id: string; files: Record<string, string> }) => `/api/textures/file/${r.provider}/${r.id}/${r.files.diff}`;
+
+export type BenchStep = { label: string; seconds: number; mem_mb: number | null; note: string };
+export type BenchJob = { state: "running" | "done" | "error"; done: number; total: number; error: string | null; steps: BenchStep[]; standard: boolean;
+  estimate: { tiles: number; tile_px: number; seconds_per_tile: number; total_minutes: number; note: string } | null;
+  machine: { cpu_count: number | null; ram_gb: number | null; python: string; os: string; numpy: string; scipy?: string } };
+export async function benchStart(project: Project | null): Promise<string> { return (await (await post("/api/bench", { project })).json()).job_id; }
+export async function benchStatus(id: string): Promise<BenchJob> { return (await fetch(`/api/bench/${id}`)).json(); }
