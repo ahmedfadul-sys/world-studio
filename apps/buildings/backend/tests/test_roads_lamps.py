@@ -5,6 +5,7 @@ import struct
 import pytest
 
 from bimgame.bim import debim_adapter
+from bimgame.bim.model import RRoad
 from bimgame.geometry import builders as B
 from bimgame.geometry.cache import build_geometry, load_manifest
 from bimgame.schema import Guide, Lamp, Road, Stair, new_project, surface_material_id, with_surface_materials
@@ -83,3 +84,12 @@ def test_guides_never_reach_geometry(tmp_path):
     assert not again.rebuilt                      # لا تغيير في أي عنصر
     assert set(load_manifest(tmp_path / "a")["parts"]) == set(load_manifest(tmp_path / "a")["parts"])
     assert not [k for k in load_manifest(tmp_path / "a")["parts"] if k.startswith("gd")]
+
+
+@pytest.mark.parametrize("path", [[(0, 0), (100, 30)], [(0, 0), (37.3, 12.9)], [(0, 0), (50, 0), (100, 40)], [(0, 0), (6.76, 6.42), (3.99, -8.71)]])
+def test_slanted_roads_have_no_degenerate_triangles(path):
+    """الطرق المائلة كانت تُنتج مثلثات منحلّة فيفشل البناء برسالة «الأبعاد»."""
+    from bimgame.geometry.mesh import mesh_issues
+    r = RRoad(id="r", level_id="l", path=path, z0=0, width=7, sidewalk=2.5, curb=.15, thickness=.2, material=None, sidewalk_material=None)
+    m, _ = B.road_mesh(r)
+    assert mesh_issues(m.welded()) == []
