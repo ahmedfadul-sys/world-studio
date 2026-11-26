@@ -4,7 +4,7 @@ import math, os, platform, random, sys, threading, time
 import numpy as np
 from .schemas import Project
 from .terrain import Engine, engine_for, grid_axes, nearest_grid, nearest_grid_ref, smooth_path
-from .tiles import tile_axes, tile_plan
+from .tiles import export_workers, tile_axes, tile_plan
 
 BENCH: dict = {}          # مهمة واحدة نشطة في كل مرة (قيد: مهمة بناء واحدة، 8 جيجا ذاكرة)
 
@@ -85,18 +85,21 @@ def run_bench(job: dict, project: Project | None) -> None:
                 nx, ny, mpp = tile_plan(p)
                 big = Project.model_validate({**p.model_dump(), "export": {**p.export.model_dump(), "tile_px": px}})
                 nx, ny, mpp = tile_plan(big); eng = Engine(big, step=0.75 * mpp)
-                c, r = nx // 2, ny // 2; ax = tile_axes(big, c, r)
+                c, r = nx // 2, ny // 2; ax = tile_axes(big, c, r); ax2 = tile_axes(big, min(nx - 1, c + 1), r)
                 dt = {}
                 def go_t(ax=ax):
-                    t0 = time.perf_counter(); eng.grid(*ax); dt["t"] = time.perf_counter() - t0
-                _timed(steps, f"مربع تصدير واحد {px}×{px}", go_t, f"{big.world.chunk_size_m:.0f} م · {mpp:.2f} م/بكسل · {nx * ny} مربع في العالم")
+                    t0 = time.perf_counter(); eng.grid(*ax); dt["cold"] = time.perf_counter() - t0
+                _timed(steps, f"مربع تصدير 1 (أول مربع، يشمل التهيئة) {px}×{px}", go_t, f"{big.world.chunk_size_m:.0f} م · {mpp:.2f} م/بكسل · {nx * ny} مربع في العالم")
+                def go_w(ax2=ax2):
+                    t0 = time.perf_counter(); eng.grid(*ax2); dt["warm"] = time.perf_counter() - t0
+                _timed(steps, f"مربع تصدير 2 (مربع عادي) {px}×{px}", go_w)
                 if px == p.export.tile_px or (px == 1025 and p.export.tile_px not in (513, 1025)):
-                    job["estimate"] = {"tiles": nx * ny, "tile_px": px, "seconds_per_tile": round(dt["t"], 2),
-                                       "total_minutes": round(dt["t"] * nx * ny / 60.0, 1), "note": "تقدير تقريبي (مربع وسطي × عدد المربعات، بلا HLOD أو التفاصيل)"}
+                    nw = export_workers(nx * ny, False)
+                    seq = dt["warm"] * nx * ny
+                    job["estimate"] = {"tiles": nx * ny, "tile_px": px, "seconds_per_tile": round(dt["warm"], 2), "workers": nw,
+                                       "total_minutes": round((seq / nw * (1.1 if nw > 1 else 1.0) + dt["cold"]) / 60.0, 1), "sequential_minutes": round((seq + dt["cold"]) / 60.0, 1),
+                                       "note": "تقدير تقريبي: مربع عادي × عدد المربعات ÷ عدد العمليات، بلا HLOD أو التفاصيل"}
             done += 1; job["done"] = done
-        if "estimate" not in job:
-            nx, ny, _ = tile_plan(p); last = next((s for s in reversed(steps) if s["label"].startswith("مربع")), None)
-            if last: job["estimate"] = {"tiles": nx * ny, "tile_px": 1025, "seconds_per_tile": last["seconds"], "total_minutes": round(last["seconds"] * nx * ny / 60.0, 1), "note": "تقدير تقريبي"}
         job["state"] = "done"
     except Exception as e:  # noqa: BLE001
         job.update(state="error", error=str(e))
