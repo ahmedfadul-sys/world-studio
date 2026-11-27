@@ -160,6 +160,18 @@ def _disc(cx: float, cy: float, z: float, R: float, n: int = 48):
     return pos, idx.ravel()
 
 
+def _in_poly(px, py, P):
+    """اختبار نقطة داخل مضلع (شعاع أفقي) لمصفوفة نقاط."""
+    inside = np.zeros(px.shape, bool)
+    x, y = P[:, 0], P[:, 1]
+    j = len(P) - 1
+    for i in range(len(P)):
+        cond = ((y[i] > py) != (y[j] > py)) & (px < (x[j] - x[i]) * (py - y[i]) / (y[j] - y[i] + 1e-12) + x[i])
+        inside ^= cond
+        j = i
+    return inside
+
+
 def _pack(gltf: dict, bin_: bytes) -> bytes:
     js = json.dumps(gltf, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     js += b" " * (-len(js) % 4)
@@ -169,7 +181,7 @@ def _pack(gltf: dict, bin_: bytes) -> bytes:
 
 
 def build_glb(project, resolution: int = 1025, tex_px: int = 2048, jpeg_quality: int = 90,
-              progress: Callable[[str, float], None] = lambda s, f: None, region=None) -> Tuple[bytes, dict]:
+              progress: Callable[[str, float], None] = lambda s, f: None, region=None, clip_poly=None) -> Tuple[bytes, dict]:
     """يبني الملف. يعيد (bytes، تقرير: عدد الرؤوس/المثلثات، تقرير الخبز، الاعتمادات)."""
     from . import texlib
     resolution = int(min(max(resolution, 65), MAX_GLB_RES))
@@ -194,6 +206,13 @@ def build_glb(project, resolution: int = 1025, tex_px: int = 2048, jpeg_quality:
     progress("الشبكة", 0.85)
     pos, nrm, uv = _terrain_arrays(Z, xs - rx0, ys - ry0)
     idx = _grid_indices(*Z.shape)
+    if clip_poly is not None and len(clip_poly) >= 3:        # مرحلة بحدود حرّة (إحداثيات العالم): تُحذف الخلايا التي مركزها خارج المضلع
+        cx = (xs[:-1] + xs[1:]) / 2; cy = (ys[:-1] + ys[1:]) / 2
+        CX, CY = np.meshgrid(cx, cy)
+        inside = _in_poly(CX.ravel(), CY.ravel(), np.asarray(clip_poly, float))
+        idx = idx.reshape(-1, 6)[inside].ravel()
+        if idx.size == 0:
+            raise ValueError("حدود المرحلة لا تحتوي أي خلية من التضاريس")
     b = _Builder()
     A_POS = b.accessor(pos, 5126, "VEC3", 34962, minmax=True)
     A_NRM = b.accessor(nrm, 5126, "VEC3", 34962)

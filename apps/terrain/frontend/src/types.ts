@@ -105,7 +105,7 @@ export const defaultAtmosphere = (): Atmosphere => ({
   air_density: 1, dust_density: 1, ozone_density: 1, sky_altitude_m: null, fog: true, fog_density: null, fog_anisotropy: 0.35,
   camera: true, camera_azimuth: 225, camera_distance_factor: 0.6, camera_height_above_peak_m: null, focal_length_mm: 35, sensor_width_mm: 36, dof: true, f_stop: 4,
 });
-export interface Level { id: string; name: string; x_m: number; y_m: number; w_m: number; h_m: number }
+export interface Level { id: string; name: string; x_m: number; y_m: number; w_m: number; h_m: number; points?: [number, number][] }
 export interface Project {
   version: number; name: string;
   world: { size_x_m: number; size_y_m: number; cell_size_m: number; chunk_size_m: number; seed: number; sea_level_m: number };

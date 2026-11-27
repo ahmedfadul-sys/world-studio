@@ -235,3 +235,4 @@ button.ghost { background:transparent; border-color:transparent; color:var(--mut
 .lm-text{fill:#fff;font-size:14px;font-weight:600;pointer-events:none}
 .lm-drag{fill:rgba(255,255,255,.15);stroke:#fff;stroke-dasharray:4 3}
 .lvdot{width:12px;height:12px;border-radius:3px;flex:none}
+.lm-vtx{fill:#fff;stroke:#111;stroke-width:1.5;cursor:grab}.lm-mid{fill:rgba(255,255,255,.55);stroke:#111;stroke-width:1;cursor:copy}

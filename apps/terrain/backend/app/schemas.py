@@ -436,6 +436,7 @@ class Level(BaseModel):
     y_m: float = Field(0, ge=0)
     w_m: float = Field(1000, gt=0)
     h_m: float = Field(1000, gt=0)
+    points: Optional[List[Tuple[float, float]]] = None          # حدود حرّة (م، إحداثيات العالم)؛ المستطيل أعلاه = صندوقها المحيط
 
 
 class Project(BaseModel):

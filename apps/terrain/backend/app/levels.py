@@ -29,6 +29,9 @@ def validate_levels(project) -> list[str]:
         if lv.id in ids:
             errs.append(f"معرّف مكرر: {lv.id}")
         ids.add(lv.id)
+        if lv.points is not None and (len(lv.points) < 3 or any(not (0 <= px <= w.size_x_m + 1e-6 and 0 <= py <= w.size_y_m + 1e-6) for px, py in lv.points)):
+            errs.append(f"حدود المرحلة {i + 1} غير صالحة (3 نقاط على الأقل داخل العالم)")
+            continue
         if lv.x_m + lv.w_m > w.size_x_m + 1e-6 or lv.y_m + lv.h_m > w.size_y_m + 1e-6:
             errs.append(f"المرحلة {i + 1} تخرج عن حدود العالم")
     return errs
@@ -83,7 +86,7 @@ def export_levels(project, out_path: str, resolution: int = 513, tex_px: int = 2
         for i, lv in enumerate(project.levels):
             folder = level_folder(i)
             reg = (lv.x_m, lv.y_m, lv.x_m + lv.w_m, lv.y_m + lv.h_m)
-            data, rep = glb_mod.build_glb(project, resolution, tex_px, jpeg_quality=88, region=reg,
+            data, rep = glb_mod.build_glb(project, resolution, tex_px, jpeg_quality=88, region=reg, clip_poly=lv.points,
                                           progress=lambda s, f, i=i: progress(f"المرحلة {i + 1}/{n}: {s}", (i + f) / n))
             z.writestr(f"{ROOT}/{folder}/terrain.glb", data)
             zmin = zmax = 0.0
@@ -97,7 +100,7 @@ def export_levels(project, out_path: str, resolution: int = 513, tex_px: int = 2
                 pass
             z.writestr(f"{ROOT}/{folder}/{folder}.tscn", tscn(folder, lv.w_m, lv.h_m, (zmin + zmax) / 2))
             z.writestr(f"{ROOT}/{folder}/level.gd", _GD)
-            info = {"folder": folder, "id": lv.id, "name": lv.name or folder, "origin_m": [lv.x_m, lv.y_m], "size_m": [lv.w_m, lv.h_m],
+            info = {"folder": folder, "id": lv.id, "name": lv.name or folder, "origin_m": [lv.x_m, lv.y_m], "boundary_m": [(px - lv.x_m, py - lv.y_m) for px, py in lv.points] if lv.points else None, "size_m": [lv.w_m, lv.h_m],
                     "z_min_m": zmin, "z_max_m": zmax, "vertices": rep["vertices"], "triangles": rep["triangles"]}
             z.writestr(f"{ROOT}/{folder}/level.json", json.dumps(info, ensure_ascii=False, indent=2))
             meta.append(info)

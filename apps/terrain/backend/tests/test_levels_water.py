@@ -56,3 +56,11 @@ def test_save_grant_single_use(tmp_path, monkeypatch):
         savefile.write(pk["token"], b"z"); assert False
     except KeyError:
         pass
+
+
+def test_polygon_level_clips_triangles():
+    p = _proj()
+    tri = [(0, 0), (1000, 0), (0, 1000)]                       # مثلث: نصف المربع
+    full, rf = G.build_glb(p, 65, 256, region=(0, 0, 1000, 1000))
+    cut, rc = G.build_glb(p, 65, 256, region=(0, 0, 1000, 1000), clip_poly=tri)
+    assert 0.4 < rc["triangles"] / rf["triangles"] < 0.6
