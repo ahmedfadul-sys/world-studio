@@ -1,7 +1,7 @@
 from __future__ import annotations
 import base64, json, math, os, re, tempfile, threading, uuid
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from .schemas import Project, PreviewRequest, ProfileRequest, RouteRequest, SuggestRequest, LotsRequest, SimRequest, ViewRequest
@@ -11,7 +11,7 @@ from .exporter import build_zip, normalize
 from .tiles import export_tiles, tile_plan
 from .routing import route, suggest_sites, lots_for_site
 from .gameplay import simulate, viewshed
-from . import texlib, glb as glb_mod, blendexport
+from . import texlib, glb as glb_mod, blendexport, savefile, levels as levels_mod
 
 app = FastAPI(title="TerrainForge")
 JOBS: dict = {}
@@ -217,6 +217,28 @@ def export_world(p: Project, fmt: str = Query(..., pattern="^(glb|blend)$")):
     return {"job_id": jid, "format": fmt}
 
 
+@app.post("/api/export-levels")
+def export_levels_start(p: Project):
+    errs = levels_mod.validate_levels(p)
+    if errs or not p.levels:
+        raise HTTPException(422, detail="؛ ".join(errs) or "لا توجد مراحل: ارسم مرحلة واحدة على الأقل.")
+    jid = uuid.uuid4().hex[:12]
+    job = {"state": "running", "done": 0, "total": 100, "error": None, "stage": "بدء", "fmt": "zip",
+           "path": os.path.join(tempfile.gettempdir(), f"terrainforge_{jid}.zip"), "filename": "World_Game.zip", "media": "application/zip"}
+    _reap()
+    JOBS[jid] = job
+
+    def run():
+        try:
+            levels_mod.export_levels(p, job["path"], min(p.export.glb_resolution, 513), p.export.glb_texture_px,
+                                     progress=lambda s, f: job.update(stage=s, done=int(f * 100)))
+            job.update(state="done", done=100, stage="تم")
+        except Exception as e:  # noqa: BLE001
+            job.update(state="error", error=str(e))
+    threading.Thread(target=run, daemon=True).start()
+    return {"job_id": jid, "levels": len(p.levels)}
+
+
 @app.post("/api/preview-glb")
 def preview_glb(p: Project, res: int = Query(257, ge=65, le=513), tex: int = Query(1024, ge=256, le=2048)):
     """GLB خفيف لنافذة المعاينة (نفس مسار التصدير بدقة أقل) — ما تراه هو ما سيُصدَّر."""
@@ -267,6 +289,21 @@ def tex_file(provider: str, asset_id: str, name: str):
     if not re.fullmatch(r"[A-Za-z0-9_.\-]+\.(jpg|jpeg|png)", name) or not f.is_file():
         raise HTTPException(404, "الملف غير موجود")
     return FileResponse(f)
+
+
+@app.post("/api/save/pick")
+def save_pick(req: dict):
+    """يفتح نافذة «حفظ باسم» أصلية على جهاز المستخدم."""
+    return savefile.pick(str(req.get("name") or "file"))
+
+
+@app.post("/api/save/write")
+async def save_write(request: Request, token: str = Query(...)):
+    try:
+        p = savefile.write(token, await request.body())
+    except KeyError as e:
+        raise HTTPException(400, str(e))
+    return {"path": str(p)}
 
 
 _DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"

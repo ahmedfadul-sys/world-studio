@@ -840,6 +840,23 @@ class Engine:
                                     height_m=fl.height_m, length_m=fl.length_m))
         return out
 
+    def river_ribbons(self, maxn=400):
+        """سطح الماء لكل نهر: مركز المجرى (x,y)، منسوب الماء (فوق قاع المجرى بقليل، ولا يرتفع باتجاه المصب)، والعرض. للمعاينة وملف GLB."""
+        out = []
+        for i, (typ, f) in enumerate(self.stages):
+            if typ != "line" or f.kind != "river":
+                continue
+            d = self._design(i)
+            if not d or "bed" not in d or len(d["s"]) < 2:
+                continue
+            ix = np.unique(np.linspace(0, len(d["s"]) - 1, min(maxn, len(d["s"]))).astype(int))
+            fr = np.clip(d["s"][ix] / max(d["L"], 1e-9), 0, 1)
+            w = _lerp(f.width_m, f.width_end_m or f.width_m, fr)
+            dp = _lerp(f.depth_m, f.depth_end_m if f.depth_end_m is not None else f.depth_m, fr)
+            zw = np.minimum.accumulate(d["bed"][ix] + np.minimum(0.15 * dp, 0.6) + 0.05)   # طبقة ماء فوق أرضية المجرى المسطّحة (الضفاف تعلو عنها تدريجياً)
+            out.append(dict(id=f.id, x=d["x"][ix], y=d["y"][ix], z=zw, width=np.maximum(w, 0.5)))
+        return out
+
     def linear_info(self, maxn=300):
         out = []
         for i, (typ, f) in enumerate(self.stages):

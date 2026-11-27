@@ -27,10 +27,20 @@ export async function exportZip(project: Project): Promise<Blob> {
   return (await post("/api/export", project)).blob();
 }
 
-export function download(blob: Blob, name: string) {
+/** يحفظ الملف: نافذة «حفظ باسم» أصلية (يتيحها الخادم المحلي)، وإلا تنزيل المتصفح. يعيد المسار إن عُرف، أو null إن أُلغي. */
+export async function download(blob: Blob, name: string): Promise<string | null> {
+  try {
+    const pk = await (await fetch("/api/save/pick", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) })).json();
+    if (pk.cancelled) return null;
+    if (pk.token) {
+      const r = await fetch(`/api/save/write?token=${pk.token}`, { method: "POST", body: blob });
+      if (r.ok) return (await r.json()).path as string;
+    }
+  } catch { /* ننزل عبر المتصفح */ }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  return "مجلد التنزيلات في المتصفح";
 }
 
 export async function startTiles(project: Project): Promise<{ job_id: string; tiles: number }> {
@@ -72,6 +82,9 @@ export async function exportCapabilities(refresh = false): Promise<Capabilities>
 }
 export async function startWorldExport(project: Project, fmt: "glb" | "blend"): Promise<{ job_id: string }> {
   return (await post(`/api/export-world?fmt=${fmt}`, project)).json();
+}
+export async function startLevelsExport(project: Project): Promise<{ job_id: string; levels: number }> {
+  return (await post("/api/export-levels", project)).json();
 }
 export async function worldJobStatus(id: string): Promise<{ state: "running" | "done" | "error"; done: number; total: number; error: string | null; stage: string | null }> {
   return (await fetch(`/api/job/${id}`)).json();

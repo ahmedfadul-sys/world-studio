@@ -2,10 +2,11 @@ import { Fragment, Suspense, lazy, useEffect, useLayoutEffect, useRef, useState,
 import MapCanvas, { type Mode, type Overlay, type Sel } from "./MapCanvas";
 import { analyze, parseTelemetry, syntheticSessions, type Session, type TStats } from "./telemetry";
 import Chart from "./Chart";
-import { download, exportCapabilities, exportZip, fetchPreview, fetchProfile, jobDownload, jobStatus, lotsApi, routeApi, simulateApi, startTiles, startWorldExport, suggestSites, texEnsure, viewshedApi, worldJobStatus, type Capabilities } from "./api";
+import { download, exportCapabilities, exportZip, fetchPreview, fetchProfile, jobDownload, jobStatus, lotsApi, routeApi, simulateApi, startLevelsExport, startTiles, startWorldExport, suggestSites, texEnsure, texFetch, texSearch, viewshedApi, worldJobStatus, type Capabilities } from "./api";
 const World3D = lazy(() => import("./World3D"));
 const PerfBench = lazy(() => import("./PerfBench"));      // three.js يُحمَّل عند فتح المعاينة فقط
 import TexBrowser from "./TexBrowser";
+import LevelsPanel from "./LevelsPanel";
 import { sampleZ } from "./render";
 import {
   BIOME_PRESETS, LINE_META, POINT_META, POI_META, SITE_META, ZONE_META, conflict, defaultProject, newBiome, newLine, newPoi, newPoint, newSite, newZone, polyArea, siteExt, sliceAndDice,
@@ -46,8 +47,8 @@ function MatSel({ label, value, onChange, mats }: { label: string; value: string
 const DIRS: [string, number][] = [["شمال", 0], ["شرق", 90], ["جنوب", 180], ["غرب", 270]];
 const MODES: [Mode, string][] = [["select", "تحديد"], ["point", "نقطية"], ["line", "خطية"], ["cell", "خلية"], ["profile", "مقطع"], ["biome", "منطقة"], ["site", "منشأة"], ["zone", "نباتات"], ["poi", "اهتمام"], ["route", "مسار ذكي"]];
 const MODE_ICON: Record<Mode, string> = { select: "M5 3l14 7-6 2-2 6z", point: "M12 3a6 6 0 016 6c0 5-6 12-6 12S6 14 6 9a6 6 0 016-6z", line: "M4 19c4-1 3-8 8-8s4-6 8-7", cell: "M4 4h16v16H4zM4 12h16M12 4v16", profile: "M3 17l6-8 4 5 3-3 5 6", biome: "M5 18l2-12 8-2 4 8-6 6z", site: "M4 20V9l8-5 8 5v11M9 20v-6h6v6", zone: "M12 21v-8M12 13c-4 0-6-3-6-7 4 0 6 2 6 7zM12 13c4 0 6-3 6-7-4 0-6 2-6 7z", poi: "M12 3l3 6 6 1-4.5 4.5L18 21l-6-3-6 3 1.5-6.5L3 10l6-1z", route: "M4 18c3-8 5 0 8-6s5-6 8-8" };
-type Tab = "world" | "design" | "play" | "look" | "export";
-const TABS: [Tab, string][] = [["world", "العالم"], ["design", "التصميم"], ["play", "اللعب"], ["look", "المظهر"], ["export", "التصدير"]];
+type Tab = "world" | "design" | "levels" | "play" | "look" | "export";
+const TABS: [Tab, string][] = [["world", "العالم"], ["design", "التصميم"], ["levels", "تصميم المراحل"], ["play", "اللعب"], ["look", "المظهر"], ["export", "التصدير"]];
 const fmtDur = (s: number) => `${Math.floor(s / 3600)}س ${Math.floor((s % 3600) / 60)}د`;
 
 export default function App() {
@@ -114,9 +115,18 @@ export default function App() {
     };
     window.addEventListener("message", h); return () => window.removeEventListener("message", h);
   });
-  const flash = (m: string) => { setNotice(m); setTimeout(() => setNotice(null), 5000); };
+  const flash = (m: string) => { setNotice(m); setTimeout(() => setNotice(null), 12000); };
   const [tab, setTab] = useState<Tab>("world");
   const [sideOpen, setSideOpen] = useState(true);
+  const [panelW, setPanelW] = useState<number>(() => { try { return Math.min(720, Math.max(260, Number(localStorage.getItem("tf.panelW")) || 352)); } catch { return 352; } });
+  const setPanelWidth = (w: number) => { const v = Math.round(Math.min(720, Math.max(260, w))); setPanelW(v); try { localStorage.setItem("tf.panelW", String(v)); } catch { /* التخزين غير متاح */ } };
+  const dragPanel = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = e.currentTarget; el.setPointerCapture(e.pointerId);
+    const rtl = getComputedStyle(document.documentElement).direction === "rtl";
+    const move = (ev: PointerEvent) => setPanelWidth(rtl ? window.innerWidth - ev.clientX : ev.clientX);
+    const up = () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); };
+    el.addEventListener("pointermove", move); el.addEventListener("pointerup", up);
+  };
   const [theme, setTheme] = useState<"dark" | "light">(() => { try { return localStorage.getItem("tf-theme") === "light" ? "light" : "dark"; } catch { return "dark"; } });
   useLayoutEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem("tf-theme", theme); } catch { /* التخزين غير متاح */ } }, [theme]);
   useEffect(() => { if (sel || cellSel) { setTab("design"); setSideOpen(true); } }, [sel, cellSel]);   // اختيار عنصر في الخريطة يفتح محرره
@@ -149,18 +159,29 @@ export default function App() {
     const h = setInterval(async () => {
       const s = await jobStatus(job.id);
       setJob((j) => (j ? { ...j, ...s } : j));
-      if (s.state === "done") { download(await jobDownload(job.id), "terrain_tiles.zip"); }
+      if (s.state === "done") { const p = await download(await jobDownload(job.id), "terrain_tiles.zip"); if (p) flash(`حُفظ الملف في: ${p}`); }
     }, 800);
     return () => clearInterval(h);
   }, [job?.id, job?.state]); // eslint-disable-line
 
+  const [ljob, setLjob] = useState<{ id: string; state: "running" | "done" | "error"; done: number; stage: string | null } | null>(null);
+  useEffect(() => { // متابعة تصدير المراحل
+    if (!ljob || ljob.state !== "running") return;
+    const h = setInterval(async () => {
+      const s = await worldJobStatus(ljob.id);
+      setLjob((j) => (j ? { ...j, state: s.state, done: s.done, stage: s.stage } : j));
+      if (s.state === "error") setErr(s.error ?? "فشل تصدير المراحل");
+      if (s.state === "done") { const p = await download(await jobDownload(ljob.id), "World_Game.zip"); if (p) flash(`حُفظ الملف في: ${p}`); }
+    }, 900);
+    return () => clearInterval(h);
+  }, [ljob?.id, ljob?.state]); // eslint-disable-line
   useEffect(() => { exportCapabilities().then(setCaps).catch(() => undefined); }, []);
   useEffect(() => { // متابعة مهمة تصدير GLB/.blend
     if (!wjob || wjob.state !== "running") return;
     const h = setInterval(async () => {
       const s = await worldJobStatus(wjob.id);
       setWjob((j) => (j ? { ...j, ...s } : j));
-      if (s.state === "done") { download(await jobDownload(wjob.id), `world.${wjob.fmt}`); }
+      if (s.state === "done") { const p = await download(await jobDownload(wjob.id), `world.${wjob.fmt}`); if (p) flash(`حُفظ الملف في: ${p}`); }
     }, 700);
     return () => clearInterval(h);
   }, [wjob?.id, wjob?.state]); // eslint-disable-line
@@ -304,12 +325,12 @@ export default function App() {
     setSel(null);
   };
 
-  const doExport = async () => { setBusy(true); setErr(null); try { download(await exportZip(project), "terrain_export.zip"); } catch (e) { setErr(String((e as Error).message)); } setBusy(false); };
+  const doExport = async () => { setBusy(true); setErr(null); try { const p = await download(await exportZip(project), "terrain_export.zip"); if (p) flash(`حُفظ الملف في: ${p}`); } catch (e) { setErr(String((e as Error).message)); } setBusy(false); };
   const doTiles = async () => {
     setErr(null);
     try { const r = await startTiles(project); setJob({ id: r.job_id, done: 0, total: r.tiles * 2, state: "running", error: null }); } catch (e) { setErr(String((e as Error).message)); }
   };
-  const save = () => download(new Blob([JSON.stringify(project, null, 2)], { type: "application/json" }), `${project.name}.terrain.json`);
+  const save = async () => { const p = await download(new Blob([JSON.stringify(project, null, 2)], { type: "application/json" }), `${project.name}.terrain.json`); if (p) flash(`حُفظ الملف في: ${p}`); };
   const load = async (f: File) => {
     try {
       const p = JSON.parse(await f.text()) as Project;
@@ -339,6 +360,25 @@ export default function App() {
   const hasErrors = !!preview?.errors.length;
   const mats = project.materials;
   const setMat = (id: string, patch: Partial<Material>) => set((p) => Object.assign(p.materials.find((m) => m.id === id)!, patch));
+  const [quickBusy, setQuickBusy] = useState<string | null>(null);
+  /** نقرة واحدة: ينزّل خامة CC0 مناسبة للمادة المدمجة (عشب، صخر…) ويطبّقها فوراً على كل المعالم التي تستعملها. */
+  const quickTex = async (id: string, query: string, color: string) => {
+    setErr(null); setQuickBusy(id);
+    try {
+      let hit = null as Awaited<ReturnType<typeof texSearch>>[number] | null;
+      for (const prov of ["polyhaven", "ambientcg"]) { try { const h = await texSearch(prov, query); if (h.length) { hit = h[0]; break; } } catch { /* المصدر التالي */ } }
+      if (!hit) throw new Error(`لم أجد خامة «${query}» — تحقّق من الاتصال بالإنترنت.`);
+      const r = await texFetch(hit.provider, hit.id);
+      const ref = r.ref ?? `cc0:${r.provider}/${r.id}`;
+      set((p) => {
+        const ex = p.materials.find((m) => m.id === id);
+        if (ex) Object.assign(ex, { pack: ref, albedo: null, normal: null, roughness: null, height: null });
+        else p.materials.push({ id, name: id, color, albedo: null, normal: null, roughness: null, height: null, pack: ref, roughness_value: 0.9, tile_m: 10, detail_amp_m: null, detail_kind: null });
+      });
+      flash(`طُبّقت خامة «${hit.name}» على ${id}. افتح المعاينة ثلاثية الأبعاد لرؤيتها.`);
+    } catch (e) { setErr(String((e as Error).message)); }
+    setQuickBusy(null);
+  };
   const addMat = () => { const id = uid("مادة", mats.map((m) => m.id)); set((p) => p.materials.push({ id, name: id, color: "#808080", albedo: null, normal: null, roughness: null, height: null, pack: null, roughness_value: 0.9, tile_m: 10, detail_amp_m: null, detail_kind: null })); setMatSel(id); };
   const delMat = (id: string) => set((p) => {
     p.materials = p.materials.filter((m) => m.id !== id);
@@ -362,7 +402,7 @@ export default function App() {
   const kindsOf = (g: "pos" | "neg" | "special") => (Object.keys(POINT_META) as PointKind[]).filter((k) => POINT_META[k].group === g);
 
   return (
-    <div className={`app${sideOpen ? "" : " side-closed"}`}>
+    <div className={`app${sideOpen ? "" : " side-closed"}`} style={{ "--panel-w": `${panelW}px` } as React.CSSProperties}>
       <header className="top">
         <button className="icon ghost" title={sideOpen ? "إخفاء اللوحة" : "إظهار اللوحة"} aria-label="اللوحة الجانبية" aria-pressed={sideOpen} onClick={() => setSideOpen((o) => !o)}>☰</button>
         <div className="logo"><i />TerrainForge</div>
@@ -373,6 +413,9 @@ export default function App() {
       </header>
       <div className="mainrow">
       <aside className={`panel tab-${tab}`}>
+        <div className="panel-resizer" role="separator" aria-orientation="vertical" tabIndex={0} aria-label="تغيير عرض اللوحة الجانبية (اسحب أو استعمل الأسهم)" title="اسحب لتغيير العرض · نقر مزدوج: العرض الافتراضي"
+          onPointerDown={dragPanel} onDoubleClick={() => setPanelWidth(352)}
+          onKeyDown={(e) => { const rtl = getComputedStyle(document.documentElement).direction === "rtl"; if (e.key === "ArrowLeft") setPanelWidth(panelW + (rtl ? 24 : -24)); if (e.key === "ArrowRight") setPanelWidth(panelW + (rtl ? -24 : 24)); }} />
         <div className="panel-body" onClick={(e) => {
           const h = (e.target as HTMLElement).closest("h2"); if (!h) return;
           const closed = h.classList.toggle("closed");
@@ -623,6 +666,12 @@ export default function App() {
           </section>
         )}
 
+        <section data-tab="levels">
+          <LevelsPanel project={project} onChange={set} busy={ljob && ljob.state === "running" ? `${ljob.stage ?? "…"} ${ljob.done}%` : null} onExport={async () => {
+            setErr(null);
+            try { const r = await startLevelsExport(project); setLjob({ id: r.job_id, state: "running", done: 0, stage: "بدء" }); } catch (e) { setErr(String((e as Error).message)); }
+          }} />
+        </section>
         <section data-tab="play">
           <h2>اللاعب المتوقع</h2>
           <Field label="السرعة (م/ث)"><Num value={project.player.speed_mps} min={0.5} step={0.5} onChange={(v) => set((p) => { p.player.speed_mps = Math.max(0.5, v); })} /></Field>
@@ -667,6 +716,12 @@ export default function App() {
 
         <section data-tab="look">
           <h2>المواد والألوان</h2>
+          <div className="quicktex">
+            <p className="hint">نقرة واحدة: تنزيل الخامة وتطبيقها على كل المعالم.</p>
+            <div className="chips">{([["grass", "عشب", "grass", "#5c8a3c"], ["rock", "صخر", "rock", "#7b7468"], ["sand", "رمل", "sand", "#d8c690"], ["dirt", "تراب", "dirt", "#8b7355"], ["snow", "ثلج", "snow", "#f2f5f7"], ["gravel", "حصى", "gravel", "#9a9488"], ["mud", "طين", "mud", "#6b5338"], ["farmland", "أرض زراعية", "farmland soil", "#b09a4a"]] as const).map(([id, label, q, col]) => {
+              const done = !!mats.find((m) => m.id === id)?.pack;
+              return <button key={id} className={"chip" + (done ? " on" : "")} disabled={quickBusy !== null} onClick={() => quickTex(id, q, col)}>{quickBusy === id ? "جارٍ التنزيل…" : (done ? "✓ " : "") + label}</button>; })}</div>
+          </div>
           <ul className="list">{mats.map((m) => (
             <li key={m.id} className="matrow">
               <input type="color" value={m.color} onChange={(e) => setMat(m.id, { color: e.target.value })} aria-label={`لون ${m.name}`} />

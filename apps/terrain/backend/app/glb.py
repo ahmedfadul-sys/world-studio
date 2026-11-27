@@ -50,10 +50,11 @@ def _prefilter(img: np.ndarray, tile_m: float, texel_m: float) -> np.ndarray:
     return cv2.resize(img, (n, n), interpolation=cv2.INTER_AREA)
 
 
-def bake_albedo(project, pt, xs, ys, tex_px: int, progress: Callable[[float], None] = lambda f: None) -> Tuple[np.ndarray, dict]:
+def bake_albedo(project, pt, xs, ys, tex_px: int, progress: Callable[[float], None] = lambda f: None, region=None) -> Tuple[np.ndarray, dict]:
     """يمزج لون كل مادة (لون ثابت أو صورة متكررة كل tile_m متر) بوزنها عند كل texel. يعيد (RGB uint8، تقرير)."""
     w = project.world
-    Lx, Ly = w.size_x_m, w.size_y_m
+    x0, y0, x1, y1 = region if region else (0.0, 0.0, w.size_x_m, w.size_y_m)
+    Lx, Ly = x1 - x0, y1 - y0
     tw, th = (tex_px, max(2, int(round(tex_px * Ly / Lx)))) if Lx >= Ly else (max(2, int(round(tex_px * Lx / Ly))), tex_px)
     mx, my = Lx / tw, Ly / th
     lib = library(project)
@@ -75,14 +76,14 @@ def bake_albedo(project, pt, xs, ys, tex_px: int, progress: Callable[[float], No
         mats.append((k, tex, col, float(m.get("tile_m") or 10.0)))
     out = np.empty((th, tw, 3), np.uint8)
     band = max(16, min(256, int(4_000_000 // max(tw, 1))))
-    cols = (np.arange(tw, dtype=np.float64) + 0.5) * mx
+    cols = x0 + (np.arange(tw, dtype=np.float64) + 0.5) * mx
     for r0 in range(0, th, band):
         r1 = min(th, r0 + band)
-        Y = Ly - (np.arange(r0, r1, dtype=np.float64) + 0.5) * my
+        Y = y1 - (np.arange(r0, r1, dtype=np.float64) + 0.5) * my
         X = np.broadcast_to(cols[None, :], (r1 - r0, tw))
         Yg = np.broadcast_to(Y[:, None], (r1 - r0, tw))
-        gx = (X / Lx * (nx - 1)).astype(np.float32)
-        gy = ((Ly - Yg) / Ly * (ny - 1)).astype(np.float32)
+        gx = ((X - x0) / Lx * (nx - 1)).astype(np.float32)
+        gy = ((y1 - Yg) / Ly * (ny - 1)).astype(np.float32)
         acc = np.zeros((r1 - r0, tw, 3), np.float32)
         tot = np.zeros((r1 - r0, tw), np.float32)
         for k, tex, col, tile in mats:
@@ -94,7 +95,7 @@ def bake_albedo(project, pt, xs, ys, tex_px: int, progress: Callable[[float], No
             else:
                 h, ww = tex.shape[:2]
                 u = ((X / tile) % 1.0 * ww).astype(np.float32)
-                v = (((Ly - Yg) / tile) % 1.0 * h).astype(np.float32)
+                v = (((w.size_y_m - Yg) / tile) % 1.0 * h).astype(np.float32)
                 c = cv2.remap(tex, u, v, cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
             acc += c * wk[..., None]
             tot += wk
@@ -168,24 +169,30 @@ def _pack(gltf: dict, bin_: bytes) -> bytes:
 
 
 def build_glb(project, resolution: int = 1025, tex_px: int = 2048, jpeg_quality: int = 90,
-              progress: Callable[[str, float], None] = lambda s, f: None) -> Tuple[bytes, dict]:
+              progress: Callable[[str, float], None] = lambda s, f: None, region=None) -> Tuple[bytes, dict]:
     """يبني الملف. يعيد (bytes، تقرير: عدد الرؤوس/المثلثات، تقرير الخبز، الاعتمادات)."""
     from . import texlib
     resolution = int(min(max(resolution, 65), MAX_GLB_RES))
     w = project.world
     progress("الارتفاعات", 0.0)
     eng = engine_for(project, resolution)
-    xs, ys = grid_axes(w.size_x_m, w.size_y_m, resolution)
+    if region:                                               # مرحلة = مستطيل من العالم: الإحداثيات تبقى مطلقة داخل الحساب وتُزاح عند الكتابة
+        rx0, ry0, rx1, ry1 = region
+        gx_, gy_ = grid_axes(rx1 - rx0, ry1 - ry0, resolution)
+        xs, ys = gx_ + rx0, gy_ + ry0
+    else:
+        rx0 = ry0 = 0.0; rx1, ry1 = w.size_x_m, w.size_y_m
+        xs, ys = grid_axes(w.size_x_m, w.size_y_m, resolution)
     Z = eng.grid(xs, ys)
     progress("المواد", 0.25)
     pt, _ = paint(project, eng, Z, xs, ys)
     progress("خبز الخامة", 0.4)
-    img, bake = bake_albedo(project, pt, xs, ys, tex_px, lambda f: progress("خبز الخامة", 0.4 + 0.4 * f))
+    img, bake = bake_albedo(project, pt, xs, ys, tex_px, lambda f: progress("خبز الخامة", 0.4 + 0.4 * f), region=(rx0, ry0, rx1, ry1))
     ok, jpg = cv2.imencode(".jpg", img[:, :, ::-1], [cv2.IMWRITE_JPEG_QUALITY, int(jpeg_quality)])
     if not ok:
         raise RuntimeError("فشل ترميز JPEG")
     progress("الشبكة", 0.85)
-    pos, nrm, uv = _terrain_arrays(Z, xs, ys)
+    pos, nrm, uv = _terrain_arrays(Z, xs - rx0, ys - ry0)
     idx = _grid_indices(*Z.shape)
     b = _Builder()
     A_POS = b.accessor(pos, 5126, "VEC3", 34962, minmax=True)
@@ -199,26 +206,52 @@ def build_glb(project, resolution: int = 1025, tex_px: int = 2048, jpeg_quality:
                   "pbrMetallicRoughness": {"baseColorFactor": [0.06, 0.25, 0.42, 0.72], "metallicFactor": 0.0, "roughnessFactor": 0.08}}]
     nodes = [{"name": "Terrain", "mesh": 0}]
     sea = w.sea_level_m
-    sq = np.array([[0, sea, 0], [w.size_x_m, sea, 0], [w.size_x_m, sea, -w.size_y_m], [0, sea, -w.size_y_m]], np.float32)
+    RW, RH = rx1 - rx0, ry1 - ry0
+    sq = np.array([[0, sea, 0], [RW, sea, 0], [RW, sea, -RH], [0, sea, -RH]], np.float32)
     sidx = np.array([0, 1, 2, 0, 2, 3], np.uint32)
     meshes.append({"name": "Sea", "primitives": [{"attributes": {"POSITION": b.accessor(sq, 5126, "VEC3", 34962, minmax=True)}, "indices": b.accessor(sidx.reshape(-1, 1), 5125, "SCALAR", 34963), "material": 1}]})
     nodes.append({"name": "Sea", "mesh": 1})
-    lakes = [f for f in project.points if f.kind == "lake"]
+    lakes = [f for f in project.points if f.kind == "lake" and rx0 <= f.x_m <= rx1 and ry0 <= f.y_m <= ry1]
     if lakes:
         P, I, off = [], [], 0
         for f in lakes:
-            p, i = _disc(f.x_m, f.y_m, f.high_m, f.diameter_m / 2)
+            p, i = _disc(f.x_m - rx0, f.y_m - ry0, f.high_m, f.diameter_m / 2)
             P.append(p); I.append(i + off); off += len(p)
         lp, li = np.vstack(P), np.concatenate(I).astype(np.uint32)
         meshes.append({"name": "Lakes", "primitives": [{"attributes": {"POSITION": b.accessor(lp, 5126, "VEC3", 34962, minmax=True)}, "indices": b.accessor(li.reshape(-1, 1), 5125, "SCALAR", 34963), "material": 1}]})
         nodes.append({"name": "Lakes", "mesh": len(meshes) - 1})
+    rib = [r for r in eng.river_ribbons() if len(r["x"]) >= 2]
+    if rib:                                                  # أنهار: شريط ماء على طول المجرى
+        P, I, off = [], [], 0
+        for r in rib:
+            x, y, z, wd = r["x"], r["y"], r["z"], r["width"]
+            if region:
+                keep = (x >= rx0) & (x <= rx1) & (y >= ry0) & (y <= ry1)
+                if keep.sum() < 2: continue
+                x, y, z, wd = x[keep] - rx0, y[keep] - ry0, z[keep], wd[keep]
+            tx, ty = np.gradient(x), np.gradient(y)
+            n = np.hypot(tx, ty); n[n < 1e-9] = 1.0
+            nx_, ny_ = -ty / n, tx / n
+            L = np.stack([x + nx_ * wd / 2, z, -(y + ny_ * wd / 2)], axis=1)
+            R = np.stack([x - nx_ * wd / 2, z, -(y - ny_ * wd / 2)], axis=1)
+            m = len(x)
+            P.append(np.vstack([L, R]).astype(np.float32))
+            q = []
+            for k in range(m - 1):
+                q += [off + k, off + m + k + 1, off + m + k, off + k, off + k + 1, off + m + k + 1]   # CCW من الأعلى (المادة ثنائية الوجه على أي حال)
+            I.append(np.array(q, np.uint32)); off += 2 * m
+        rp, ri = np.vstack(P), np.concatenate(I).astype(np.uint32)
+        meshes.append({"name": "Rivers", "primitives": [{"attributes": {"POSITION": b.accessor(rp, 5126, "VEC3", 34962, minmax=True)}, "indices": b.accessor(ri.reshape(-1, 1), 5125, "SCALAR", 34963), "material": 1}]})
+        nodes.append({"name": "Rivers", "mesh": len(meshes) - 1})
     markers = []
     for s in project.sites:
+        if not (rx0 <= s.x_m <= rx1 and ry0 <= s.y_m <= ry1): continue
         z = float(eng.points([s.x_m], [s.y_m])[0])
-        markers.append({"name": f"site_{s.id}", "translation": [s.x_m, z, -s.y_m], "extras": {"type": "site", "id": s.id, "kind": s.kind, "name": s.name or s.id}})
+        markers.append({"name": f"site_{s.id}", "translation": [s.x_m - rx0, z, -(s.y_m - ry0)], "extras": {"type": "site", "id": s.id, "kind": s.kind, "name": s.name or s.id}})
     for p in project.pois:
+        if not (rx0 <= p.x_m <= rx1 and ry0 <= p.y_m <= ry1): continue
         z = float(eng.points([p.x_m], [p.y_m])[0])
-        markers.append({"name": f"poi_{p.id}", "translation": [p.x_m, z, -p.y_m], "extras": {"type": "poi", "id": p.id, "kind": p.kind, "name": p.name or p.id, "radius_m": p.radius_m}})
+        markers.append({"name": f"poi_{p.id}", "translation": [p.x_m - rx0, z, -(p.y_m - ry0)], "extras": {"type": "poi", "id": p.id, "kind": p.kind, "name": p.name or p.id, "radius_m": p.radius_m}})
     children = list(range(len(nodes)))
     if markers:
         first = len(nodes)
@@ -229,7 +262,7 @@ def build_glb(project, resolution: int = 1025, tex_px: int = 2048, jpeg_quality:
     used = texlib.records_for([texlib.resolve_pack(m.pack) for m in project.materials])
     gltf = {"asset": {"version": "2.0", "generator": "TerrainForge", "copyright": "Textures CC0 — see extras.credits" if used else "Generated by TerrainForge",
                       "extras": {"credits": texlib.credits_text(used) if used else "", "units": "meter", "axes": "glTF Y-up: X = east, Y = elevation, -Z = north",
-                                 "world_size_m": [w.size_x_m, w.size_y_m], "sea_level_m": sea, "z_min_m": float(Z.min()), "z_max_m": float(Z.max())}},
+                                 "world_size_m": [RW, RH], "region_origin_m": [rx0, ry0], "sea_level_m": sea, "z_min_m": float(Z.min()), "z_max_m": float(Z.max())}},
             "scene": 0, "scenes": [{"nodes": [len(nodes) - 1]}], "nodes": nodes, "meshes": meshes, "materials": materials,
             "textures": [{"source": 0, "sampler": 0}], "images": [{"bufferView": img_view, "mimeType": "image/jpeg"}],
             "samplers": [{"magFilter": 9729, "minFilter": 9987, "wrapS": 33071, "wrapT": 33071}],

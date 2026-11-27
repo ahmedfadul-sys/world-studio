@@ -130,6 +130,11 @@ export default function World3D({ project, onClose }: { project: Project; onClos
 
   useEffect(() => { void load(true); }, [res, tex]); // eslint-disable-line
   useEffect(() => { setStale(!!loaded.current && loaded.current !== project); }, [project]);
+  useEffect(() => { // تحديث تلقائي بعد توقف التعديل: الخامات الجديدة تظهر دون ضغط «تحديث»
+    if (!loaded.current || loaded.current === project) return;
+    const h = setTimeout(() => { void load(false); }, 1200);
+    return () => clearTimeout(h);
+  }, [project]); // eslint-disable-line
 
   // ── تأثير الضوابط على المشهد ──
   useEffect(() => {
@@ -137,7 +142,7 @@ export default function World3D({ project, onClose }: { project: Project; onClos
     s.world.scale.y = exag; s.world.updateMatrixWorld(true);
     s.markers.children.forEach((m) => { const b = m.userData.base as THREE.Vector3; m.position.set(b.x, b.y * exag + s.span / 180, b.z); });
   }, [exag, status]);
-  useEffect(() => { const s = S.current; if (!s?.world) return; for (const n of ["Sea", "Lakes"]) { const o = s.world.getObjectByName(n); if (o) o.visible = sea; } }, [sea, status]);
+  useEffect(() => { const s = S.current; if (!s?.world) return; for (const n of ["Sea", "Lakes", "Rivers"]) { const o = s.world.getObjectByName(n); if (o) o.visible = sea; } }, [sea, status]);
   useEffect(() => { const s = S.current; if (s?.terrain) (s.terrain.material as THREE.MeshStandardMaterial).wireframe = wire; }, [wire, status]);
   useEffect(() => { const s = S.current; if (s) s.markers.visible = marks; }, [marks, status]);
   useEffect(() => { placeSun(); }, [placeSun, status]);
@@ -171,7 +176,7 @@ export default function World3D({ project, onClose }: { project: Project; onClos
         <label>تضخيم الارتفاع ×{exag.toFixed(1)} <input type="range" min={1} max={6} step={0.1} value={exag} onChange={(e) => setExag(Number(e.target.value))} /></label>
         <label>اتجاه الشمس <input type="range" min={0} max={360} value={az} onChange={(e) => setAz(Number(e.target.value))} /></label>
         <label>ارتفاعها <input type="range" min={5} max={85} value={el} onChange={(e) => setEl(Number(e.target.value))} /></label>
-        <label><input type="checkbox" checked={sea} onChange={(e) => setSea(e.target.checked)} /> الماء</label>
+        <label><input type="checkbox" checked={sea} onChange={(e) => setSea(e.target.checked)} /> الماء (بحر وبحيرات وأنهار)</label>
         <label><input type="checkbox" checked={marks} onChange={(e) => setMarks(e.target.checked)} /> العلامات</label>
         <label><input type="checkbox" checked={wire} onChange={(e) => setWire(e.target.checked)} /> شبكة</label>
         <button onClick={reset}>إعادة ضبط</button><button onClick={topView}>من الأعلى</button><button onClick={shot}>لقطة PNG</button>
