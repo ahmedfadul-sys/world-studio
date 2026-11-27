@@ -32,7 +32,7 @@ export interface Zone {
   id: string; name: string; layer: ZoneLayer; polygon: XY[]; density: number; falloff_m: number; max_slope_deg: number;
   min_elev_m: number | null; max_elev_m: number | null; patchiness: number; amplitude_m: number; wavelength_m: number; seed: number; mat_main: string | null;
 }
-export type PoiKind = "poi" | "landmark" | "player_start" | "boss" | "story" | "quest" | "dungeon" | "resource" | "fast_travel";
+export type PoiKind = "poi" | "landmark" | "player_start" | "boss" | "story" | "quest" | "dungeon" | "resource" | "fast_travel" | "enemy";
 export interface Poi {
   id: string; kind: PoiKind; name: string; x_m: number; y_m: number; radius_m: number; order: number; difficulty: number; level_min: number; level_max: number;
   dwell_min: number; landmark_height_m: number; flatten: boolean; blend_m: number; notes: string;
@@ -315,11 +315,12 @@ export const POI_META: Record<PoiKind, { label: string; icon: string; color: str
   dungeon: { label: "مدخل زنزانة", icon: "⛫", color: "#a2845e", zone: 0, note: "" },
   resource: { label: "موارد", icon: "◈", color: "#30d158", zone: 0, note: "" },
   fast_travel: { label: "سفر سريع", icon: "✦", color: "#5e5ce6", zone: 0, note: "" },
+  enemy: { label: "نقطة ظهور أعداء", icon: "⚔", color: "#ff6b3d", zone: 0, note: "تُصدَّر كعقدة Marker3D في Godot؛ نصف القطر = منطقة الظهور" },
 };
 export function newPoi(kind: PoiKind, x: number, y: number, id: string, p: Project): Poi {
   const m = POI_META[kind], L = minSide(p), nextOrder = Math.max(0, ...p.pois.map((q) => q.order)) + 1;
   return {
-    id, kind, name: `${m.label} ${id.split("-").pop()}`, x_m: Math.round(x), y_m: Math.round(y), radius_m: m.zone ? Math.max(10, Math.round((L * m.zone) / 5) * 5) : 0,
+    id, kind, name: `${m.label} ${id.split("-").pop()}`, x_m: Math.round(x), y_m: Math.round(y), radius_m: kind === "enemy" ? 20 : m.zone ? Math.max(10, Math.round((L * m.zone) / 5) * 5) : 0,
     order: kind === "player_start" || kind === "landmark" || kind === "fast_travel" ? 0 : nextOrder, difficulty: kind === "boss" ? 7 : 1, level_min: 1, level_max: 1,
     dwell_min: kind === "boss" ? 8 : kind === "story" ? 5 : kind === "player_start" ? 0 : 2, landmark_height_m: kind === "landmark" ? 30 : 0,
     flatten: kind === "boss", blend_m: 30, notes: "",

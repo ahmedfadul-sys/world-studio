@@ -100,7 +100,7 @@ export default function World3D({ project, onClose }: { project: Project; onClos
       let terrain: THREE.Mesh | null = null;
       world.traverse((n) => {
         const m = n as THREE.Mesh;
-        if (m.isMesh && m.name === "Terrain") { terrain = m; const mt = m.material as THREE.MeshStandardMaterial; if (mt.map) mt.map.anisotropy = maxAniso; }
+        if (m.isMesh && m.name.startsWith("Terrain")) { terrain = m; const mt = m.material as THREE.MeshStandardMaterial; if (mt.map) mt.map.anisotropy = maxAniso; }
       });
       s.terrain = terrain;
       const box = new THREE.Box3().setFromObject(world), size = box.getSize(new THREE.Vector3());

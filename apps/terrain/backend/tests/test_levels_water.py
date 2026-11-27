@@ -64,3 +64,18 @@ def test_polygon_level_clips_triangles():
     full, rf = G.build_glb(p, 65, 256, region=(0, 0, 1000, 1000))
     cut, rc = G.build_glb(p, 65, 256, region=(0, 0, 1000, 1000), clip_poly=tri)
     assert 0.4 < rc["triangles"] / rf["triangles"] < 0.6
+
+
+def test_markers_enemy_boss_and_collision(tmp_path):
+    from app.schemas import Poi
+    p = _proj()
+    p.pois = [Poi(id="e1", kind="enemy", x_m=300, y_m=300, radius_m=20), Poi(id="b1", kind="boss", x_m=700, y_m=700, radius_m=40),
+              Poi(id="far", kind="enemy", x_m=1800, y_m=1800, radius_m=20)]
+    p.levels = [Level(id="a", x_m=0, y_m=0, w_m=1000, h_m=1000)]
+    out = tmp_path / "w.zip"
+    L.export_levels(p, str(out), 65, 256)
+    z = zipfile.ZipFile(out)
+    t = z.read("World_Game/Level1/Level1.tscn").decode()
+    assert t.count('groups=["enemy_spawn"]') == 1 and t.count('groups=["boss_spawn"]') == 1
+    d = _doc(z.read("World_Game/Level1/terrain.glb"))
+    assert d["nodes"][0]["name"] == "Terrain-col"

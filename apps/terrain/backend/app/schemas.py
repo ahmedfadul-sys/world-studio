@@ -245,7 +245,7 @@ class PaintRules(BaseModel):
     beach_height_m: float = Field(3.0, gt=0)
 
 
-PoiKind = Literal["poi", "landmark", "player_start", "boss", "story", "quest", "dungeon", "resource", "fast_travel"]
+PoiKind = Literal["poi", "landmark", "player_start", "boss", "story", "quest", "dungeon", "resource", "fast_travel", "enemy"]
 
 
 class Poi(BaseModel):
