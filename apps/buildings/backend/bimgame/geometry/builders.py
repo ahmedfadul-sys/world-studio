@@ -396,6 +396,29 @@ def stair_mesh(s: RStair, detail: str = "medium") -> Built:
 
 
 # roads / street lamps ---------------------------------------------------------
+def _clean_ring(coords) -> list[tuple[float, float]]:
+    out: list[tuple[float, float]] = []
+    for x, y in coords:
+        q = (round(float(x), 6), round(float(y), 6))
+        if not out or q != out[-1]:
+            out.append(q)
+    if len(out) > 1 and out[0] == out[-1]:
+        out.pop()
+    return out
+
+
+def _clean_poly(poly: Polygon) -> list[Polygon]:
+    """تقريب الإحداثيات إلى 1 ميكرون وحذف النقاط المتتالية المتطابقة: buffer على خط مائل يترك رؤوساً تبعد 1e-15 فتنتج مثلثات منحلّة (خطأ «الأبعاد»)."""
+    ext = _clean_ring(poly.exterior.coords)
+    if len(ext) < 3:
+        return []
+    holes = [h for h in (_clean_ring(r.coords) for r in poly.interiors) if len(h) >= 3]
+    q = Polygon(ext, holes)
+    if not q.is_valid:
+        q = q.buffer(0)
+    return [g for g in getattr(q, "geoms", [q]) if isinstance(g, Polygon) and g.area > 1e-6]
+
+
 def road_mesh(r: RRoad, detail: str = "medium") -> Built:
     """الطريق (slot 0) + الرصيفان (slot 1) المرتفعان بمقدار `curb`؛ المسار متعدد الخطوط يُعرَّض بحواف قائمة."""
     pts: list[tuple[float, float]] = []
@@ -410,13 +433,27 @@ def road_mesh(r: RRoad, detail: str = "medium") -> Built:
     if body.is_empty:
         raise ValueError(f"road polygon is empty ({r.id})")
     m = MeshData()
+
+    def _safe_extrude(q: Polygon, z0: float, z1: float, *slots: int) -> None:
+        try:
+            m.add(extrude(q, z0, z1, *slots))
+        except shapely.errors.GEOSException:                  # طريق يتقاطع مع نفسه كثيراً: نبسّط الشكل قليلاً ثم نعيد المحاولة
+            for g in _clean_poly(q.simplify(0.02)):
+                m.add(extrude(g, z0, z1, *slots))
+
     for poly in getattr(body, "geoms", [body]):
-        m.add(extrude(poly, r.z0, r.z0 + r.thickness))
+        for q in _clean_poly(poly):
+            _safe_extrude(q, r.z0, r.z0 + r.thickness)
     if r.sidewalk > 1e-6:
         walk = line.buffer(r.width / 2 + r.sidewalk, **kw).difference(body)
         for poly in getattr(walk, "geoms", [walk]):
-            if isinstance(poly, Polygon) and poly.area > 1e-6:
-                m.add(extrude(poly, r.z0, r.z0 + r.thickness + r.curb, 1, 1, 1))
+            if isinstance(poly, Polygon):
+                for q in _clean_poly(poly):
+                    _safe_extrude(q, r.z0, r.z0 + r.thickness + r.curb, 1, 1, 1)
+    if not m.is_empty():                                         # أي مثلث بمساحة صفر (تقاطعات ذاتية) يُحذف بدل أن يُفشل البناء
+        a, b, c = (m.v[m.f[:, i]] for i in range(3))
+        keep = np.linalg.norm(np.cross(b - a, c - a), axis=1) / 2 >= 1e-12
+        m.f, m.slot = m.f[keep], m.slot[keep]
     return m, [r.material, r.sidewalk_material]
 
 
