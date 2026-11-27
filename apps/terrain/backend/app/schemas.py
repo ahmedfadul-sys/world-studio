@@ -428,6 +428,16 @@ class ExportSettings(BaseModel):
     glb_texture_px: Literal[1024, 2048, 4096] = 2048          # تصدير GLB: دقة الخامة المخبوزة (الضلع الأطول)
 
 
+class Level(BaseModel):
+    """مرحلة لعبة = مستطيل من العالم الواحد (م). x_m,y_m = الزاوية الجنوبية الغربية."""
+    id: str
+    name: str = ""
+    x_m: float = Field(0, ge=0)
+    y_m: float = Field(0, ge=0)
+    w_m: float = Field(1000, gt=0)
+    h_m: float = Field(1000, gt=0)
+
+
 class Project(BaseModel):
     version: int = SCHEMA_VERSION
     name: str = "عالم جديد"
@@ -452,6 +462,7 @@ class Project(BaseModel):
     derived: Derived = Derived()                              # اختياري في الملفات القديمة
     surface: Surface = Surface()                              # اختياري في الملفات القديمة
     atmosphere: Atmosphere = Atmosphere()                     # اختياري في الملفات القديمة (تُملأ بالقيم الافتراضية)
+    levels: List[Level] = []                                  # اختياري في الملفات القديمة: تقسيم العالم إلى مراحل
     export: ExportSettings = ExportSettings()
 
 

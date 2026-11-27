@@ -105,11 +105,12 @@ export const defaultAtmosphere = (): Atmosphere => ({
   air_density: 1, dust_density: 1, ozone_density: 1, sky_altitude_m: null, fog: true, fog_density: null, fog_anisotropy: 0.35,
   camera: true, camera_azimuth: 225, camera_distance_factor: 0.6, camera_height_above_peak_m: null, focal_length_mm: 35, sensor_width_mm: 36, dof: true, f_stop: 4,
 });
+export interface Level { id: string; name: string; x_m: number; y_m: number; w_m: number; h_m: number }
 export interface Project {
   version: number; name: string;
   world: { size_x_m: number; size_y_m: number; cell_size_m: number; chunk_size_m: number; seed: number; sea_level_m: number };
   base: { elevation_m: number; noise_amplitude_m: number; noise_scale_m: number; octaves: number; noise_mode: "off" | "amplitude" | "range"; noise_min_m: number; noise_max_m: number; noise_bias: number; cell_blend: number; cell_detail: number };
-  biomes: Biome[]; cells: CellSpec[]; points: PointFeature[]; lines: LineFeature[]; sites: Site[]; zones: Zone[]; pois: Poi[]; player: PlayerModel; materials: Material[]; paint: PaintRules; erosion: Erosion; kit: Kit; roads: Roads; water: Water; detail: Detail; scatter: Scatter; derived: Derived; surface: Surface; atmosphere: Atmosphere;
+  biomes: Biome[]; cells: CellSpec[]; points: PointFeature[]; lines: LineFeature[]; sites: Site[]; zones: Zone[]; pois: Poi[]; player: PlayerModel; materials: Material[]; paint: PaintRules; erosion: Erosion; kit: Kit; roads: Roads; water: Water; detail: Detail; scatter: Scatter; derived: Derived; surface: Surface; atmosphere: Atmosphere; levels?: Level[];
   export: { resolution: 513 | 1025 | 2049 | 4097; tile_px: 513 | 1025 | 2049; mask_px: 513 | 1025 | 2049; mode: "auto" | "fixed"; zmin_m: number; zmax_m: number; glb_resolution: 257 | 513 | 1025 | 2049; glb_texture_px: 1024 | 2048 | 4096 };
 }
 export interface LinearInfo { id: string; kind: LineKind; length_m: number; s: number[]; ground: number[]; design: number[] | null; x: number[]; y: number[] }
