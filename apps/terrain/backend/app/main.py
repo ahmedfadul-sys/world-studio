@@ -195,7 +195,7 @@ def export_world(p: Project, fmt: str = Query(..., pattern="^(glb|blend)$")):
     def run():
         try:
             if fmt == "glb":
-                data, rep = glb_mod.build_glb(p, p.export.glb_resolution, p.export.glb_texture_px,
+                data, rep = glb_mod.build_glb(p, p.export.glb_resolution, p.export.glb_texture_px, collision=True,
                                               progress=lambda s, f: job.update(stage=s, done=int(f * 100)))
                 with open(job["path"], "wb") as fh:
                     fh.write(data)

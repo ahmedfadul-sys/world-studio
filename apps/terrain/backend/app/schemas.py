@@ -245,7 +245,7 @@ class PaintRules(BaseModel):
     beach_height_m: float = Field(3.0, gt=0)
 
 
-PoiKind = Literal["poi", "landmark", "player_start", "boss", "story", "quest", "dungeon", "resource", "fast_travel"]
+PoiKind = Literal["poi", "landmark", "player_start", "boss", "story", "quest", "dungeon", "resource", "fast_travel", "enemy"]
 
 
 class Poi(BaseModel):
@@ -436,6 +436,7 @@ class Level(BaseModel):
     y_m: float = Field(0, ge=0)
     w_m: float = Field(1000, gt=0)
     h_m: float = Field(1000, gt=0)
+    points: Optional[List[Tuple[float, float]]] = None          # حدود حرّة (م، إحداثيات العالم)؛ المستطيل أعلاه = صندوقها المحيط
 
 
 class Project(BaseModel):

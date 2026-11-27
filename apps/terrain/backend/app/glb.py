@@ -160,6 +160,18 @@ def _disc(cx: float, cy: float, z: float, R: float, n: int = 48):
     return pos, idx.ravel()
 
 
+def _in_poly(px, py, P):
+    """اختبار نقطة داخل مضلع (شعاع أفقي) لمصفوفة نقاط."""
+    inside = np.zeros(px.shape, bool)
+    x, y = P[:, 0], P[:, 1]
+    j = len(P) - 1
+    for i in range(len(P)):
+        cond = ((y[i] > py) != (y[j] > py)) & (px < (x[j] - x[i]) * (py - y[i]) / (y[j] - y[i] + 1e-12) + x[i])
+        inside ^= cond
+        j = i
+    return inside
+
+
 def _pack(gltf: dict, bin_: bytes) -> bytes:
     js = json.dumps(gltf, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     js += b" " * (-len(js) % 4)
@@ -169,7 +181,7 @@ def _pack(gltf: dict, bin_: bytes) -> bytes:
 
 
 def build_glb(project, resolution: int = 1025, tex_px: int = 2048, jpeg_quality: int = 90,
-              progress: Callable[[str, float], None] = lambda s, f: None, region=None) -> Tuple[bytes, dict]:
+              progress: Callable[[str, float], None] = lambda s, f: None, region=None, clip_poly=None, collision=False) -> Tuple[bytes, dict]:
     """يبني الملف. يعيد (bytes، تقرير: عدد الرؤوس/المثلثات، تقرير الخبز، الاعتمادات)."""
     from . import texlib
     resolution = int(min(max(resolution, 65), MAX_GLB_RES))
@@ -194,17 +206,24 @@ def build_glb(project, resolution: int = 1025, tex_px: int = 2048, jpeg_quality:
     progress("الشبكة", 0.85)
     pos, nrm, uv = _terrain_arrays(Z, xs - rx0, ys - ry0)
     idx = _grid_indices(*Z.shape)
+    if clip_poly is not None and len(clip_poly) >= 3:        # مرحلة بحدود حرّة (إحداثيات العالم): تُحذف الخلايا التي مركزها خارج المضلع
+        cx = (xs[:-1] + xs[1:]) / 2; cy = (ys[:-1] + ys[1:]) / 2
+        CX, CY = np.meshgrid(cx, cy)
+        inside = _in_poly(CX.ravel(), CY.ravel(), np.asarray(clip_poly, float))
+        idx = idx.reshape(-1, 6)[inside].ravel()
+        if idx.size == 0:
+            raise ValueError("حدود المرحلة لا تحتوي أي خلية من التضاريس")
     b = _Builder()
     A_POS = b.accessor(pos, 5126, "VEC3", 34962, minmax=True)
     A_NRM = b.accessor(nrm, 5126, "VEC3", 34962)
     A_UV = b.accessor(uv, 5126, "VEC2", 34962)
     A_IDX = b.accessor(idx.reshape(-1, 1), 5125, "SCALAR", 34963)
     img_view = b.view(jpg.tobytes())
-    meshes = [{"name": "Terrain", "primitives": [{"attributes": {"POSITION": A_POS, "NORMAL": A_NRM, "TEXCOORD_0": A_UV}, "indices": A_IDX, "material": 0}]}]
+    meshes = [{"name": "Terrain-col" if collision else "Terrain", "primitives": [{"attributes": {"POSITION": A_POS, "NORMAL": A_NRM, "TEXCOORD_0": A_UV}, "indices": A_IDX, "material": 0}]}]
     materials = [{"name": "TF_Terrain", "pbrMetallicRoughness": {"baseColorTexture": {"index": 0}, "metallicFactor": 0.0, "roughnessFactor": 0.95}},
                  {"name": "TF_Water", "alphaMode": "BLEND", "doubleSided": True,
                   "pbrMetallicRoughness": {"baseColorFactor": [0.06, 0.25, 0.42, 0.72], "metallicFactor": 0.0, "roughnessFactor": 0.08}}]
-    nodes = [{"name": "Terrain", "mesh": 0}]
+    nodes = [{"name": "Terrain-col" if collision else "Terrain", "mesh": 0}]
     sea = w.sea_level_m
     RW, RH = rx1 - rx0, ry1 - ry0
     sq = np.array([[0, sea, 0], [RW, sea, 0], [RW, sea, -RH], [0, sea, -RH]], np.float32)
@@ -244,13 +263,16 @@ def build_glb(project, resolution: int = 1025, tex_px: int = 2048, jpeg_quality:
         meshes.append({"name": "Rivers", "primitives": [{"attributes": {"POSITION": b.accessor(rp, 5126, "VEC3", 34962, minmax=True)}, "indices": b.accessor(ri.reshape(-1, 1), 5125, "SCALAR", 34963), "material": 1}]})
         nodes.append({"name": "Rivers", "mesh": len(meshes) - 1})
     markers = []
+    mrep = []
     for s in project.sites:
         if not (rx0 <= s.x_m <= rx1 and ry0 <= s.y_m <= ry1): continue
         z = float(eng.points([s.x_m], [s.y_m])[0])
+        mrep.append({"type": "site", "kind": s.kind, "id": s.id, "name": s.name or s.id, "x": s.x_m - rx0, "y": s.y_m - ry0, "z": z, "radius_m": 0.0, "difficulty": 0, "wx": s.x_m, "wy": s.y_m})
         markers.append({"name": f"site_{s.id}", "translation": [s.x_m - rx0, z, -(s.y_m - ry0)], "extras": {"type": "site", "id": s.id, "kind": s.kind, "name": s.name or s.id}})
     for p in project.pois:
         if not (rx0 <= p.x_m <= rx1 and ry0 <= p.y_m <= ry1): continue
         z = float(eng.points([p.x_m], [p.y_m])[0])
+        mrep.append({"type": "poi", "kind": p.kind, "id": p.id, "name": p.name or p.id, "x": p.x_m - rx0, "y": p.y_m - ry0, "z": z, "radius_m": p.radius_m, "difficulty": p.difficulty, "level_min": p.level_min, "level_max": p.level_max, "wx": p.x_m, "wy": p.y_m})
         markers.append({"name": f"poi_{p.id}", "translation": [p.x_m - rx0, z, -(p.y_m - ry0)], "extras": {"type": "poi", "id": p.id, "kind": p.kind, "name": p.name or p.id, "radius_m": p.radius_m}})
     children = list(range(len(nodes)))
     if markers:
@@ -270,4 +292,4 @@ def build_glb(project, resolution: int = 1025, tex_px: int = 2048, jpeg_quality:
     data = _pack(gltf, bytes(b.bin))
     progress("تم", 1.0)
     return data, {"vertices": int(len(pos)), "triangles": int(len(idx) // 3), "grid": [int(Z.shape[1]), int(Z.shape[0])], "bytes": len(data), "bake": bake,
-                  "textures_used": [f"{r['provider']}/{r['id']}" for r in used]}
+                  "markers": mrep, "textures_used": [f"{r['provider']}/{r['id']}" for r in used]}
